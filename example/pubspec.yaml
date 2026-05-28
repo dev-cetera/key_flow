@@ -1,0 +1,25 @@
+name: email_app_example
+homepage: https://dev-cetera.com/
+repository: https://github.com/robmllze/key_flow
+funding:
+  - https://www.buymeacoffee.com/dev_cetera
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  url_launcher: ^6.3.1
+  go_router: ^14.8.0
+  df_pod: ^0.20.0
+  intl:
+  key_flow:
+    path: ../
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true

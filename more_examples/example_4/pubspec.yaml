@@ -1,0 +1,20 @@
+name: key_flow_example_4
+homepage: https://dev-cetera.com/
+repository: https://github.com/robmllze/key_flow
+funding:
+  - https://www.buymeacoffee.com/dev_cetera
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  url_launcher: ^6.3.1
+  go_router: ^14.8.0
+  df_pod: ^0.20.0
+  intl: ^0.20.2
+  key_flow:
+    path: ../../
+dev_dependencies:
+  flutter_lints: ^6.0.0
