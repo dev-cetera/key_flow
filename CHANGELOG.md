@@ -1,5 +1,11 @@
 # CHANGELOG
 
+
+## [0.2.0]
+
+- chore: standardize README and CI/CD workflows, remove donation links, update contact info and repository links
+- chore: resolve analyzer issues
+
 ## [0.1.0]
 
 - Initial release

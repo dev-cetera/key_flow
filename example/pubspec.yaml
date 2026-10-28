@@ -1,8 +1,6 @@
 name: email_app_example
 homepage: https://dev-cetera.com/
-repository: https://github.com/robmllze/key_flow
-funding:
-  - https://www.buymeacoffee.com/dev_cetera
+repository: https://github.com/dev-cetera/key_flow
 publish_to: 'none'
 version: 1.0.0+1
 environment:
