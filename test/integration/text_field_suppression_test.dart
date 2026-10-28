@@ -132,7 +132,8 @@ void main() {
     });
   });
 
-  group('text field suppression — disabled (suppressBareKeysInTextFields: false)',
+  group(
+      'text field suppression — disabled (suppressBareKeysInTextFields: false)',
       () {
     testWidgets('bare key fires even when text field is focused',
         (tester) async {
@@ -169,8 +170,7 @@ void main() {
   });
 
   group('text field suppression — no text field focused', () {
-    testWidgets('bare key fires normally outside text fields',
-        (tester) async {
+    testWidgets('bare key fires normally outside text fields', (tester) async {
       final actionKey = UniqueKey();
       var fired = 0;
       final control = KeyFlowControl(

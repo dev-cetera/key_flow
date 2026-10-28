@@ -221,14 +221,12 @@ void main() {
         (tester) async {
       await withPlatformAsync(TargetPlatform.macOS, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.controlLeft);
-        const a =
-            KeyActivator.logical(LogicalKeyboardKey.keyA, control: true);
+        const a = KeyActivator.logical(LogicalKeyboardKey.keyA, control: true);
         expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isTrue);
       });
     });
 
-    testWidgets('alt activator matches event with alt pressed',
-        (tester) async {
+    testWidgets('alt activator matches event with alt pressed', (tester) async {
       await simulateKeyDownEvent(LogicalKeyboardKey.altLeft);
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA, alt: true);
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isTrue);

@@ -75,9 +75,10 @@ void main() {
         strongRefListener: () => notifyCount += 1,
       );
       c.mappingsNotifier.update(
-        (m) => m..[UniqueKey()] = const [
-          KeyActivator.logical(LogicalKeyboardKey.keyA),
-        ],
+        (m) => m
+          ..[UniqueKey()] = const [
+            KeyActivator.logical(LogicalKeyboardKey.keyA),
+          ],
       );
       expect(notifyCount, greaterThan(0));
     });

@@ -57,8 +57,9 @@ class ControlMappingsBuilderExample extends StatelessWidget {
                       child: Builder(
                         builder: (context) {
                           final key = entry.key;
-                          final description =
-                              key is DescriptiveKey ? key.description(context) : key.toString();
+                          final description = key is DescriptiveKey
+                              ? key.description(context)
+                              : key.toString();
                           return Text(
                             '[${entry.value.map((e) => e.debugName).join(', ')}] $description',
                           );

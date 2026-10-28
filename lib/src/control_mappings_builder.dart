@@ -53,9 +53,8 @@ class ControlMappingsBuilder extends StatelessWidget {
         return ListenableBuilder(
           listenable: FocusManager.instance,
           builder: (context, _) {
-            final withFocus = controls
-                .where((e) => e.focusNode?.hasFocus == true)
-                .toList();
+            final withFocus =
+                controls.where((e) => e.focusNode?.hasFocus == true).toList();
             final combined = <Key, List<KeyActivator>>{};
             for (final e in withFocus) {
               for (final entry in e.mappings.entries) {

@@ -16,7 +16,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FocusHighlighter', () {
-    testWidgets('applies the default unfocused decoration (null) when not focused',
+    testWidgets(
+        'applies the default unfocused decoration (null) when not focused',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(

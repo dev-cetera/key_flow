@@ -23,7 +23,8 @@ class KeyFlowKeyNameBuilder<TKey extends Key> extends StatelessWidget {
   //
 
   final TKey mappingKey;
-  final Widget Function(BuildContext context, String name, Widget? child) builder;
+  final Widget Function(BuildContext context, String name, Widget? child)
+      builder;
   final Widget? child;
 
   //

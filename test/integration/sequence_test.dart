@@ -21,7 +21,8 @@ void main() {
   });
 
   group('multi-step sequences', () {
-    testWidgets('two-step sequence "g i" fires after both keys', (tester) async {
+    testWidgets('two-step sequence "g i" fires after both keys',
+        (tester) async {
       final key = UniqueKey();
       var fired = 0;
       final control = KeyFlowControl(

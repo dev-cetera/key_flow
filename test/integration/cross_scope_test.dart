@@ -99,8 +99,7 @@ void main() {
       expect(rootFired, 0);
     });
 
-    testWidgets('child without binding falls through to root',
-        (tester) async {
+    testWidgets('child without binding falls through to root', (tester) async {
       final rootOnlyKey = UniqueKey();
       var rootFired = 0;
       final root = KeyFlowControl(

@@ -173,7 +173,11 @@ void main() {
           textDirection: TextDirection.ltr,
           child: Column(
             children: [
-              Focus(focusNode: shared, autofocus: true, child: const SizedBox(width: 10, height: 10)),
+              Focus(
+                focusNode: shared,
+                autofocus: true,
+                child: const SizedBox(width: 10, height: 10),
+              ),
               Expanded(
                 child: ControlMappingsBuilder(
                   controls: [controlA, controlB],
