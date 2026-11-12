@@ -12,6 +12,9 @@
 //.title~
 
 import 'package:flutter/foundation.dart';
+// Material leaves Flutter's core for package:material_ui, which needs Flutter
+// 3.47; this keeps key_flow working on 3.32 and later until it moves.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
 import '/key_flow.dart';

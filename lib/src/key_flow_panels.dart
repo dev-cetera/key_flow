@@ -13,6 +13,9 @@
 
 import 'dart:math' as math;
 
+// Material leaves Flutter's core for package:material_ui, which needs Flutter
+// 3.47; this keeps key_flow working on 3.32 and later until it moves.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:meta/meta.dart';
 
@@ -56,10 +59,7 @@ class KeyPrefixPanel extends StatelessWidget {
         final pending = position.pending.isEmpty
             ? null
             : position.pending.map(_strokeText).join(' ');
-        final title = [
-          ...position.path,
-          if (pending != null) pending,
-        ].join(' › ');
+        final title = [...position.path, ?pending].join(' › ');
         return _Modal(
           onDismiss: controller.close,
           alignment: Alignment.bottomCenter,
@@ -381,10 +381,7 @@ class _PaletteRow extends StatelessWidget {
                   ),
                   if (where != null || !enabled)
                     Text(
-                      [
-                        if (where != null) where,
-                        if (!enabled) unavailable,
-                      ].join(' · '),
+                      [?where, if (!enabled) unavailable].join(' · '),
                       overflow: TextOverflow.ellipsis,
                       style: style.textStyle.copyWith(
                         color: style.muted,

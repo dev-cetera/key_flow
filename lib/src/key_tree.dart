@@ -291,7 +291,7 @@ final class KeyCommandEntry extends KeyItemEntry {
     final shortcuts = fullBindings.map((binding) => binding.describe());
     return [
       path.join(' › '),
-      if (description != null) description!,
+      ?description,
       if (checked != null) checked! ? 'Currently on.' : 'Currently off.',
       if (shortcuts.isNotEmpty) 'Shortcut: ${shortcuts.join(' or ')}.',
     ].join('. ').replaceAll('..', '.');
