@@ -11,248 +11,193 @@
 
 [![Pub Version](https://img.shields.io/pub/v/key_flow)](https://pub.dev/packages/key_flow)
 
-A Flutter package that simplifies UI navigation by providing abstractions for keyboard shortcuts and keybindings. Whether you're building a desktop app, a web app, or enhancing accessibility in mobile apps, `key_flow` empowers you to create intuitive and efficient keyboard-driven interactions. It abstracts the complexity of managing focus, key events, and keybindings, allowing you to focus on delivering a seamless user experience.
+Keyboard-first Flutter apps that screen readers and AI agents can use too.
 
-## Simple Example
+Declare what your app can do once, as a tree of commands nested as deep as you like. key_flow turns it into:
+
+- **Shortcuts**, including keys pressed one after another (`G P 1`). After the first key a panel shows what to press next, and it waits until you choose: no one has to be quick, an agent included.
+- **A command palette** (⌘K), **a sheet of every shortcut** (`?` or ⌘/), **jump mode** (⌘J puts letters on every control; type them to press it) and **moving between areas** (F6). Nothing needs a mouse.
+- **Menus**: the macOS menu bar, or a bar drawn in the window on Windows, Linux and the web.
+- **Accessible controls**: anything linked to a command gets its name, keys, enabled and on/off state, and a focus ring.
+- **Plain data for AI**: the commands in force as a list, or as tool definitions for a model, and a way to run them by id.
+
+## Quick start
 
 ```dart
-// Create a key to identify some action.
-final actionKey = UniqueKey();
-
-// Create a control to manage key mappings and callbacks.
-final control = KeyFlowControl(
-  mappings: {actionKey: [PhysicalKeyboardKey.keyA]},
-  callbacks: {
-    actionKey: (context, _) => print('You pressed "A" while focused.'),
-  },
+MaterialApp(
+  builder: (context, child) => KeyFlow(
+    commands: [
+      KeyCommand(id: 'new', label: 'New project', keys: ['meta+n'],
+          onRun: (context) => newProject()),
+      KeyGroup(id: 'go', label: 'Go to', keys: ['g'], children: [
+        KeyCommand(id: 'inbox', label: 'Inbox', keys: ['i'],
+            onRun: (context) => openInbox()),
+        KeyGroup(id: 'project', label: 'Project', keys: ['p'], children: [
+          for (final (i, p) in projects.indexed)
+            KeyCommand(id: p.id, label: p.name, keys: ['${i + 1}'],
+                onRun: (context) => open(p)),
+        ]),
+      ]),
+    ],
+    child: KeyFlowMenuBar(drawOnOtherPlatforms: true, child: child!),
+  ),
+  home: const HomePage(),
 );
+```
 
-// Wrap any widget with a KeyFlowFocus. When in focus, its actions apply.
-Widget build(BuildContext context) {
-  return KeyFlowFocus(
-    // Automatically focus the widget to receive key events.
-    autofocus: true,
-    control: control,
-    child: Builder(
-      builder: (context) {
-        final hasFocus =  FocusScope.of(context).hasFocus;
-        if (hasFocus) {
-          return Text('Press A to print.');
-        }
-        return Text('Not focused');
-      },
-    ),
-  );
+Put `KeyFlow` in `MaterialApp.builder` (or `WidgetsApp.builder`) so it covers every route and dialog.
+
+## Nesting
+
+Two kinds of nesting work together.
+
+**By where the person is.** Wrap each part of the screen that has commands of its own in a `KeyFlowScope`. The commands in force are the app's, then each scope's around the focused widget; the nearest wins when two use the same keys. A click inside a scope moves the focus into it.
+
+```dart
+Row(children: [
+  KeyFlowScope(
+    region: 'Sidebar',                       // F6 moves between named areas
+    commands: [KeyCommand(id: 'next', label: 'Next', keys: ['down'], onRun: ...)],
+    child: const ProjectList(),
+  ),
+  KeyFlowScope(
+    region: 'Editor',
+    commands: [
+      KeyCommand(id: 'run', label: 'Run', keys: ['meta+r'], onRun: ...),
+      KeyGroup(id: 'step', label: 'Step', keys: ['s'], children: [   // S, then:
+        KeyCommand(id: 'add', label: 'Add step', keys: ['a'], onRun: ...),
+        KeyCommand(id: 'delete', label: 'Delete step', keys: ['d'], onRun: ...),
+      ]),
+    ],
+    child: const Editor(),
+  ),
+]);
+```
+
+**Inside the keys.** A `KeyGroup` with `keys` is a step: its children's keys come after its own (`G` then `P` then `1`). A group without keys only gathers commands under a name, for a menu, the palette or the shortcut sheet, and its children's keys work as if it were not there.
+
+- Full ids join the groups' ids with dots: `go.project.shop`. Ids use letters, digits, `-` and `_` and are never translated.
+- A group with the same id in an inner scope is the same group: the scope adds children to it and replaces those with the same id. A page can add itself to the app's "Go to" group by declaring `KeyGroup(id: 'go', children: [...])` with only its own children.
+- `KeyDivider()` draws a line in menus and panels.
+- Keys that could mean two things in the same scope are printed in debug builds; between scopes the nearer one deliberately wins.
+
+## Writing keys
+
+| Text | Means |
+|---|---|
+| `meta+k` | ⌘K on macOS and iOS, Ctrl+K elsewhere |
+| `ctrl+k` | Ctrl+K everywhere |
+| `alt+shift+enter`, `f5`, `escape`, `up`, `space`, `meta++` | as written |
+| `g` | the G key alone (left to text fields while someone types) |
+| `?`, `/` | whatever key types that character on the person's layout |
+| `g p 1` | G, then P, then 1 |
+| `⌘⇧K`, `G P 1` | what the panels show reads back the same |
+
+`KeyBinding.parse` and `KeyActivator.parse` read them; `toSpec()` and `describe()` write them back.
+
+## Linking controls
+
+`KeyTarget` makes anything a control for a command: Tab reaches it, Enter or Space presses it, a click runs it, hovering shows its keys, and a screen reader or agent reads it by the command's name. It greys out when the command cannot run and shows on or off for a switch (`checked`).
+
+```dart
+KeyTarget(command: 'run', child: MyRunButtonLook())
+```
+
+For a control that is already a button, `KeyHint` adds the command's name, keys and tooltip, and `callbackFor` greys it out with the command:
+
+```dart
+KeyHint(
+  command: 'run',
+  child: IconButton(
+    icon: const Icon(Icons.play_arrow),
+    onPressed: KeyFlow.of(context).callbackFor(context, 'run'),
+  ),
+)
+```
+
+## Panels and how they look
+
+key_flow adds a `keyflow` group with the palette (⌘K), the shortcut sheet (`?`, ⌘/), jump mode (⌘J) and moving between areas (F6, ⇧F6). Change their names and keys with `KeyFlowBuiltIns`, their words with `KeyFlowStrings`, and their colours with `KeyFlowStyle` (taken from the app's `Theme` by default). `panelBuilder` wraps or replaces any panel; `KeyFlow.of(context)` gives a custom panel everything it needs.
+
+Hide a command from a place with `hiddenFrom: {KeySurface.palette}` (or `menuBar`, `helpSheet`, `prefixPanel`, `agents`). Wrap controls only the person should press, such as approving what an agent asks for, in `KeyJumpExclude`, and give their commands no keys and `hiddenFrom: {KeySurface.agents}`.
+
+## Menus
+
+Mark top-level groups `inMenuBar: true` (File, Edit, View) and put `KeyFlowMenuBar` inside the `KeyFlow`. On macOS the groups become the native menu bar, kept in step with where the focus is, after the standard app menu (About, Hide, Quit; replace it with `leading`); `trailing` adds Window or Help. With `drawOnOtherPlatforms: true`, other platforms get the same menus drawn above the app. An app with its own menu bar can use `platformMenusOf` or `menuBarChildrenOf`.
+
+## People's own keys
+
+Pass `keyOverrides` (full id to keys) to change any command's keys, built-ins included, and save what `onKeyOverridesChanged` reports after `controller.setKeys(id, keys)`. Swapping whole maps gives key profiles:
+
+```dart
+KeyFlow(
+  keyOverrides: vim ? {'next': ['j', 'down'], 'previous': ['k', 'up']} : {},
+  ...
+)
+```
+
+## AI agents
+
+The same commands reach an agent three ways.
+
+**An app's own AI.** Give the model the commands in force as tools and run the one it calls:
+
+```dart
+final keys = KeyFlow.of(context);
+final tools = keys.currentTree.toToolList();   // [{name, description, parameters}]
+// ... the model calls a tool by name ...
+await keys.runTool(toolCall.name);
+```
+
+`toCommandList()` gives the same commands as plain data (id, label, path, keys from the top, shortcuts as shown, enabled, checked). `run(id)` runs a command or opens a group; `onCommandRun` tells the app, and so its AI, what the person just did.
+
+**An agent driving the app from outside** (through accessibility and the keyboard, such as apprentice). Every linked control and panel line is a named button. On macOS its value is its shortcut, since macOS drops the accessibility hint, so an agent reads `button "Run" value="⌘R"` and can press the key. The palette and the shortcut sheet are readable text, and native menus show each shortcut.
+
+On macOS, Flutter shows its controls to accessibility clients other than VoiceOver only once the window says a screen reader started. Add this to `macos/Runner/MainFlutterWindow.swift`, after `RegisterGeneratedPlugins` (key_flow reminds you in debug builds):
+
+```swift
+DispatchQueue.main.async {
+  NotificationCenter.default.post(
+    name: NSNotification.Name("NSApplicationDidChangeAccessibilityEnhancedUserInterfaceNotification"),
+    object: NSApp, userInfo: ["AXEnhancedUserInterface": true])
 }
 ```
 
-## Examples
+Flutter on macOS does not pass on a text field's label; put a visible label next to each field.
 
-- [Example 0](https://github.com/dev-cetera/key_flow/blob/main/example/lib/): An example of a basic email app supporting keyboard controls.
-- [Example 1](https://github.com/dev-cetera/key_flow/blob/main/more_examples/example_1/lib/): TODO...
-- [Example 2](https://github.com/dev-cetera/key_flow/blob/main/more_examples/example_2/lib/): TODO...
-- [Example 3](https://github.com/dev-cetera/key_flow/blob/main/more_examples/example_3/lib/): A simple example of keyboard navigation and controls for tabs in flutter.
-- [Example 4](https://github.com/dev-cetera/key_flow/blob/main/more_examples/example_4/lib/): A simple email app example with keyboard navigation and focus management.
-- [Example 5](https://github.com/dev-cetera/key_flow/blob/main/more_examples/example_5/lib/): Full demo with help overlay, command palette, and swappable KeyFlow/Vim/Emacs profiles.
-
-## Why key_flow?
-
-Keyboard navigation is essential for accessibility, productivity, and user satisfaction, especially in desktop and web applications. However, managing keyboard shortcuts and focus in Flutter can be challenging due to the need to handle focus nodes, key events, and dynamic mappings manually. `key_flow` addresses these challenges by providing:
-
-- **Simplified Abstractions:** Define actions, key combinations, and callbacks with minimal boilerplate, making keyboard navigation intuitive and maintainable.
-- **Focus Management Made Easy:** KeyFlowFocus handles focus nodes and autofocus behavior, ensuring keybindings work only when intended, enhancing user focus and reducing conflicts.
-- **Flexible and Dynamic:** Support for nested keybindings, dynamic remapping, and localization ensures your app can adapt to user preferences and accessibility needs.
-- **Accessibility Boost:** By enabling keyboard navigation, your app becomes more accessible to users with disabilities, aligning with WCAG guidelines.
-- **Enhanced Productivity:** Users can navigate and perform actions faster, improving the overall usability of your app, especially for power users.
-- **Scalable and Maintainable:** The modular design allows you to manage keybindings across different parts of your app, making it easier to scale and maintain as your app grows.
-
-Whether you're adding keyboard shortcuts to a text editor, enabling navigation in a dashboard, or enhancing accessibility in a game, `key_flow` is the tool you need to streamline the process and deliver a polished user experience.
-
-## Features
-
-- **Simplified Keyboard Navigation:** Easily manage keyboard shortcuts and keybindings in your Flutter applications.
-- **Focus Management:** Utilize `KeyFlowFocus` to manage focus nodes and key events with customizable autofocus behavior.
-- **Flexible Key Mapping:** Define and manage key combinations and their associated actions using `KeyFlowControl`.
-- **Inherited Widget Support:** Leverage `KeyFlowScope` for accessing key flow control up the widget tree.
-- **Descriptive Keys:** Use `UniqueActionKey` for uniquely identifying actions with descriptive callbacks with access to a `BuildContext` for localization support.
-- **Dynamic Key Remapping:** Dynamically remap keys and callbacks at runtime for flexible user experiences.
-- **Nested Keybindings:** Support nested `KeyFlowFocus` widgets where child keybindings take precedence over parent keybindings.
-
----
-
-## Flutter Keys, Focus, and FocusNode: A Quick Refresher
-
-Before diving into `key_flow`, let's refresh your understanding of Flutter's key and focus management concepts, as they are crucial for effective keyboard navigation.
-
-### Flutter Keys
-
-Keys in Flutter are identifiers for widgets, used to preserve state or distinguish between widgets in a list or tree. They are essential for maintaining widget identity across rebuilds. Types of keys include `UniqueKey`, `ValueKey`, and the custom `UniqueActionKey` in `key_flow` which
-provides a description of the action associated with the key.
-
-#### Why Keys Matter for Keybindings
-
-Keys uniquely identify actions in your app, ensuring that key combinations and callbacks are associated with the correct actions. Keys should be unique accross your app to avoid conflicts.
-
-#### Focus
-
-The Flutter `Focus` widget determines which widget in the UI can receive input events, such as keyboard presses. Many widgets in Flutter incorporate focus management to handle user interactions such as the `TextField`, `FilledButton`, `Checkbox` and more. `key_flow` internally uses `Focus` to manage focus for keybindings. The `Focus` widget has an `autofocus` property that automatically focuses the widget when it is built. Setting `autofocus: true` ensures the widget receives key events without requiring manual focus management.
-
-#### FocusNode
-
-A `FocusNode` is an object that manages focus for a widget such as a `Focus`. It tracks whether a widget is focused and handles focus-related events. The `FocusNode` has several properties and methods to manage focus, such as:
-
-- `hasFocus`: Indicates if the node currently has focus.
-- `requestFocus()`: Requests focus for the node.
-- `unfocus()`: Removes focus from the node.
-- `onKeyEvent`: A callback for handling key events when the node is focused..
-
-### Focus and FocusNode Example
+## Checking accessibility in tests
 
 ```dart
-final focusNode = FocusNode();
-Focus(
-  autofocus: true,
-  focusNode: focusNode,
-  onKeyEvent: (node, event) {
-  if (event is KeyDownEvent && event.logicalKey == PhysicalKeyboardKey.keyA) {
-    print('A pressed');
-    return KeyEventResult.handled;
-  }
-    return KeyEventResult.ignored;
-  },
-  child: Builder(
-    builder: (context) {
-      final hasFocus =  FocusScope.of(context).hasFocus;
-      if (hasFocus) {
-        return Text('Press A to print.');
-      }
-      return Text('Not focused');
-    },
-  ),
-);
+final handle = tester.ensureSemantics();
+final view = tester.binding.renderViews.first;
+final root = view.owner!.semanticsOwner!.rootSemanticsNode!;
+expect(findAccessibilityIssues(root), isEmpty);   // unnamed, or no keyboard way in
+handle.dispose();
 ```
 
-### Why Focus Matters for Keybindings
+## Upgrading from 0.2
 
-Keybindings only work when the associated widget is focused. `key_flow` simplifies focus management, ensuring key events are handled correctly based on focus state. To automatically focus a widget, use `autofocus: true` in `KeyFlowFocus`. For manual focus management, use the `focusNode` property.
+0.3 replaces the flat map of keys with the command tree.
 
-Understanding all the concepts above will help you leverage `key_flow` effectively, as it builds on Flutter's focus and key systems to provide a streamlined keyboard navigation experience.
+| 0.2 | 0.3 |
+|---|---|
+| `KeyFlowControl(mappings:, callbacks:)` | `KeyCommand`s and `KeyGroup`s in `KeyFlow(commands:)` or `KeyFlowScope(commands:)` |
+| `UniqueActionKey((c) => 'Label')` | `KeyCommand(id: 'x', label: 'Label')` |
+| `KeyFlowFocus(control:)` | `KeyFlowScope(commands:)` |
+| `[KeyActivator.logical(keyG), KeyActivator.logical(keyI)]` | `keys: ['g i']`, or a `KeyGroup` on `g` |
+| `control.remap(key, …)` | `KeyFlow.of(context).setKeys('id', [...])` |
+| `FocusHighlighter` | the focus ring of `KeyTarget` |
+| help overlay and palette from the examples | built in |
 
----
+`KeyActivator` and `FocusBuilder` stay. `KeyActivator` can also match a typed character, prints Enter as ↩ on Apple platforms, and its `toString()` shows the text form (`meta+enter`).
 
-## Usage
+## Example
 
-Now that you have a good understanding of Flutter keys, focus, and focus nodes, let's explore how to use `key_flow` to enhance keyboard navigation in your Flutter app...
-
-### Step 1: Define Action Keys
-
-Define unique keys to identify actions in your app. Actions are associated with callbacks that are triggered when the corresponding key combination is pressed.
-
-```dart
-import 'package:key_flow/key_flow.dart';
-
-// Prefer using `UniqueActionKey` for descriptive and localizable action identifiers:
-final openSomeSnackbarAction = UniqueActionKey((context) => 'Opens some snack bar.');
-final openDrawerAction = UniqueActionKey((context) => 'Opens the drawer.');
-final printAAction = UniqueActionKey((context) => 'Prints "A"');
-final printZAction = UniqueActionKey((context) => 'Prints "Z"');
-final printQAction = UniqueActionKey((context) => 'Prints "Q"');
-final launchGmailAction = UniqueActionKey((context) => 'Launches Gmail');
-
-// Normal Flutter keys can also be used, but they don't provide descriptive information:
-final printInfoAction = UniqueKey();
-final exitAppAction = ValueKey('exit-app');
-```
-
-### Step 2: Define Default Key Mappings
-
-Link key sequences to actions. These can be rebound later.
-
-```dart
-final defaultMappings = {
-  openSomeSnackbarAction: [PhysicalKeyboardKey.space, PhysicalKeyboardKey.space],
-  printAAction: [PhysicalKeyboardKey.keyA],
-  printZAction: [PhysicalKeyboardKey.keyZ],
-  printQAction: [PhysicalKeyboardKey.keyQ],
-};
-```
-
-### Step 3: Define Default Callbacks
-
-Link actions to callbacks. These can also be rebound later.
-
-```dart
-final defaultCallbacks = <Key, TContextCallback>{
-  openSomeSnackbarAction: (context, registry) {
-    showQuickSnackBar(context, 'Here is some snackbar for you. Enjoy!');
-  },
-  printAAction: (context, registry) {
-    showQuickSnackBar(context, 'A');
-  },
-  printZAction: (context, registry) {
-    showQuickSnackBar(context, 'Z');
-  },
-  printQAction: (context, registry) {
-    showQuickSnackBar(context, 'Q/R');
-  },
-};
-```
-
-### Step 4: Create a Control
-
-Create a `KeyFlowControl` instance to manage key events for specific focus areas in the widget tree.
-
-```dart
-final defaultControl = KeyFlowControl(
-  mappings: defaultMappings,
-  callbacks: defaultCallbacks,
-);
-```
-
-### Step 5: Integrate with Widgets
-
-Use `KeyFlowFocus` to integrate key flow control into your widget tree. Ensure proper focus management for keybindings to work.
-
-```dart
-KeyFlowFocus(
-  key: UniqueKey(),
-  // Automatically focus the widget on build to receive key events.
-  autofocus: true,
-  // Alternatively, use `focusNode` to manage focus manually.
-  //focusNode: FocusNode(),
-  // Pass a control to manage key events and actions.
-  control: defaultControl,
-  // Your widget tree here...
-  child: // ...
-),
-```
-
----
-
-## Testing
-
-The package ships with a comprehensive test suite (200+ tests) that exercises every component — `KeyActivator` matching across platforms and modifiers, `KeyFlowControl` lifecycle and dispatch logic, every widget (`KeyFlowFocus`, `KeyFlowScope`, `KeyFlowMappingsBuilder`, `ControlMappingsBuilder`, `FocusBuilder`, `FocusHighlighter`), and integration scenarios:
-
-- **Multi-step sequences** — Superhuman-style "g i" sequences, timeouts, buffer resets, completion-then-restart.
-- **Cross-scope shortcuts** — child controls walking the ancestor chain to fire root-declared bindings; child bindings taking precedence; deduping of shared singleton controls referenced from multiple scopes.
-- **Text-field suppression** — bare keys suppressed inside `TextField`s, modifier chords passing through, and sequences refusing to start.
-- **Repeat events** — single-key activators fire on `KeyRepeatEvent` (for held arrow-keys etc.), sequences do not advance on repeats, `KeyUpEvent` is always ignored.
-- **Lifecycle & stress** — dispose mid-sequence (no leaked timers), rapid input (100 presses in a row), large mapping sets (500+ bindings), and runtime mutation (add/remove/replace) during active focus.
-
-```sh
-flutter test               # run everything
-flutter test test/unit     # fast unit tests only
-flutter test test/widget   # widget-level tests
-flutter test test/integration   # end-to-end scenarios
-```
-
-## Contributions and Feedback
-
-Contributions, feedback, and feature requests are welcome! If you encounter any issues or have suggestions for improving `key_flow`, please open an issue on the GitHub repository.
+[example/lib/main.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/main.dart): a projects app run entirely from the keyboard, with menus, nested groups, two areas, linked controls, a text field, Vim keys as a profile, and a panel showing what agents see, live.
 
 ## License
 
-This project is released under the MIT License. See [LICENSE](https://raw.githubusercontent.com/dev-cetera/key_flow/main/LICENSE) for more information.
+MIT, see [LICENSE](https://raw.githubusercontent.com/dev-cetera/key_flow/main/LICENSE).
 
 <!-- END _README_CONTENT -->
 

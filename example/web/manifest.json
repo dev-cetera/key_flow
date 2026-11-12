@@ -1,6 +1,6 @@
 {
-    "name": "email_app_example",
-    "short_name": "email_app_example",
+    "name": "key_flow_example",
+    "short_name": "key_flow_example",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

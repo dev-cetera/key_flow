@@ -40,13 +40,15 @@ void main() {
       expect(a.shift, isTrue);
     });
 
-    test('PhysicalKeyActivator subclass produces a physical-style activator',
-        () {
-      const a = PhysicalKeyActivator(PhysicalKeyboardKey.keyK, alt: true);
-      expect(a.physical, PhysicalKeyboardKey.keyK);
-      expect(a.logical, isNull);
-      expect(a.alt, isTrue);
-    });
+    test(
+      'PhysicalKeyActivator subclass produces a physical-style activator',
+      () {
+        const a = PhysicalKeyActivator(PhysicalKeyboardKey.keyK, alt: true);
+        expect(a.physical, PhysicalKeyboardKey.keyK);
+        expect(a.logical, isNull);
+        expect(a.alt, isTrue);
+      },
+    );
 
     test('default modifier flags are all false', () {
       const a = KeyActivator.logical(LogicalKeyboardKey.space);
@@ -126,13 +128,15 @@ void main() {
       expect(a.hashCode, equals(b.hashCode));
     });
 
-    test('PhysicalKeyActivator equals KeyActivator.physical with same args',
-        () {
-      const a = PhysicalKeyActivator(PhysicalKeyboardKey.keyA);
-      const b = KeyActivator.physical(PhysicalKeyboardKey.keyA);
-      expect(a, equals(b));
-      expect(a.hashCode, equals(b.hashCode));
-    });
+    test(
+      'PhysicalKeyActivator equals KeyActivator.physical with same args',
+      () {
+        const a = PhysicalKeyActivator(PhysicalKeyboardKey.keyA);
+        const b = KeyActivator.physical(PhysicalKeyboardKey.keyA);
+        expect(a, equals(b));
+        expect(a.hashCode, equals(b.hashCode));
+      },
+    );
 
     test('equality is not true against other types', () {
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA);
@@ -168,14 +172,16 @@ void main() {
       expect(a.matches(syntheticKeyUp(LogicalKeyboardKey.keyA)), isFalse);
     });
 
-    testWidgets('matches KeyDownEvent for the same logical key',
-        (tester) async {
+    testWidgets('matches KeyDownEvent for the same logical key', (
+      tester,
+    ) async {
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA);
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isTrue);
     });
 
-    testWidgets('matches KeyRepeatEvent for the same logical key',
-        (tester) async {
+    testWidgets('matches KeyRepeatEvent for the same logical key', (
+      tester,
+    ) async {
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA);
       expect(a.matches(syntheticKeyRepeat(LogicalKeyboardKey.keyA)), isTrue);
     });
@@ -191,34 +197,39 @@ void main() {
   });
 
   group('matches() — logical key matching with modifiers', () {
-    testWidgets('bare activator matches event with no modifiers pressed',
-        (tester) async {
+    testWidgets('bare activator matches event with no modifiers pressed', (
+      tester,
+    ) async {
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA);
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isTrue);
     });
 
-    testWidgets('bare activator does NOT match event with shift pressed',
-        (tester) async {
+    testWidgets('bare activator does NOT match event with shift pressed', (
+      tester,
+    ) async {
       await simulateKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA);
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isFalse);
     });
 
-    testWidgets('shift activator matches event with shift pressed',
-        (tester) async {
+    testWidgets('shift activator matches event with shift pressed', (
+      tester,
+    ) async {
       await simulateKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA, shift: true);
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isTrue);
     });
 
-    testWidgets('shift activator does NOT match event without shift',
-        (tester) async {
+    testWidgets('shift activator does NOT match event without shift', (
+      tester,
+    ) async {
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA, shift: true);
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isFalse);
     });
 
-    testWidgets('control activator requires control on every platform',
-        (tester) async {
+    testWidgets('control activator requires control on every platform', (
+      tester,
+    ) async {
       await withPlatformAsync(TargetPlatform.macOS, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.controlLeft);
         const a = KeyActivator.logical(LogicalKeyboardKey.keyA, control: true);
@@ -237,15 +248,17 @@ void main() {
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyB)), isFalse);
     });
 
-    testWidgets('rejects when a non-required modifier is pressed',
-        (tester) async {
+    testWidgets('rejects when a non-required modifier is pressed', (
+      tester,
+    ) async {
       await simulateKeyDownEvent(LogicalKeyboardKey.altLeft);
       const a = KeyActivator.logical(LogicalKeyboardKey.keyA);
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isFalse);
     });
 
-    testWidgets('multi-modifier activator requires all modifiers',
-        (tester) async {
+    testWidgets('multi-modifier activator requires all modifiers', (
+      tester,
+    ) async {
       await simulateKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       await simulateKeyDownEvent(LogicalKeyboardKey.altLeft);
       const a = KeyActivator.logical(
@@ -256,8 +269,9 @@ void main() {
       expect(a.matches(syntheticKeyDown(LogicalKeyboardKey.keyA)), isTrue);
     });
 
-    testWidgets('multi-modifier activator rejects partial modifiers',
-        (tester) async {
+    testWidgets('multi-modifier activator rejects partial modifiers', (
+      tester,
+    ) async {
       await simulateKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       const a = KeyActivator.logical(
         LogicalKeyboardKey.keyA,
@@ -269,8 +283,9 @@ void main() {
   });
 
   group('matches() — meta/cmd platform behavior', () {
-    testWidgets('on macOS, meta activator matches when meta is pressed',
-        (tester) async {
+    testWidgets('on macOS, meta activator matches when meta is pressed', (
+      tester,
+    ) async {
       await withPlatformAsync(TargetPlatform.macOS, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.metaLeft);
         const a = KeyActivator.logical(LogicalKeyboardKey.keyA, meta: true);
@@ -278,8 +293,9 @@ void main() {
       });
     });
 
-    testWidgets('on macOS, meta activator does NOT match when ctrl pressed',
-        (tester) async {
+    testWidgets('on macOS, meta activator does NOT match when ctrl pressed', (
+      tester,
+    ) async {
       await withPlatformAsync(TargetPlatform.macOS, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.controlLeft);
         const a = KeyActivator.logical(LogicalKeyboardKey.keyA, meta: true);
@@ -287,8 +303,9 @@ void main() {
       });
     });
 
-    testWidgets('on iOS, meta activator matches when meta is pressed',
-        (tester) async {
+    testWidgets('on iOS, meta activator matches when meta is pressed', (
+      tester,
+    ) async {
       await withPlatformAsync(TargetPlatform.iOS, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.metaLeft);
         const a = KeyActivator.logical(LogicalKeyboardKey.keyA, meta: true);
@@ -296,8 +313,9 @@ void main() {
       });
     });
 
-    testWidgets('on Windows, meta activator matches when ctrl is pressed',
-        (tester) async {
+    testWidgets('on Windows, meta activator matches when ctrl is pressed', (
+      tester,
+    ) async {
       await withPlatformAsync(TargetPlatform.windows, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.controlLeft);
         const a = KeyActivator.logical(LogicalKeyboardKey.keyA, meta: true);
@@ -305,8 +323,9 @@ void main() {
       });
     });
 
-    testWidgets('on Linux, meta activator matches when ctrl is pressed',
-        (tester) async {
+    testWidgets('on Linux, meta activator matches when ctrl is pressed', (
+      tester,
+    ) async {
       await withPlatformAsync(TargetPlatform.linux, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.controlLeft);
         const a = KeyActivator.logical(LogicalKeyboardKey.keyA, meta: true);
@@ -314,8 +333,9 @@ void main() {
       });
     });
 
-    testWidgets('on Windows, meta activator does NOT match when only meta',
-        (tester) async {
+    testWidgets('on Windows, meta activator does NOT match when only meta', (
+      tester,
+    ) async {
       await withPlatformAsync(TargetPlatform.windows, () async {
         await simulateKeyDownEvent(LogicalKeyboardKey.metaLeft);
         const a = KeyActivator.logical(LogicalKeyboardKey.keyA, meta: true);
@@ -419,14 +439,14 @@ void main() {
       });
     });
 
-    test('on macOS, shift+meta+Enter is "⌘⇧Enter"', () {
+    test('on macOS, shift+meta+Enter is "⌘⇧↩"', () {
       withPlatform(TargetPlatform.macOS, () {
         const a = KeyActivator.logical(
           LogicalKeyboardKey.enter,
           meta: true,
           shift: true,
         );
-        expect(a.describe(), '⌘⇧Enter');
+        expect(a.describe(), '⌘⇧↩');
       });
     });
 
@@ -477,10 +497,10 @@ void main() {
       });
     });
 
-    test('toString delegates to describe()', () {
+    test('toString shows the text form', () {
       withPlatform(TargetPlatform.macOS, () {
         const a = KeyActivator.logical(LogicalKeyboardKey.enter, meta: true);
-        expect(a.toString(), 'KeyActivator(${a.describe()})');
+        expect(a.toString(), 'KeyActivator(meta+enter)');
       });
     });
   });

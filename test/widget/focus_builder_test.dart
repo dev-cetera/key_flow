@@ -21,8 +21,8 @@ void main() {
           textDirection: TextDirection.ltr,
           child: Focus(
             child: FocusBuilder(
-              hasFocusBuilder: (_, __) => const Text('FOCUS'),
-              hasNoFocusBuilder: (_, __) => const Text('NO_FOCUS'),
+              hasFocusBuilder: (_, _) => const Text('FOCUS'),
+              hasNoFocusBuilder: (_, _) => const Text('NO_FOCUS'),
             ),
           ),
         ),
@@ -42,8 +42,8 @@ void main() {
             focusNode: node,
             autofocus: true,
             child: FocusBuilder(
-              hasFocusBuilder: (_, __) => const Text('FOCUS'),
-              hasNoFocusBuilder: (_, __) => const Text('NO_FOCUS'),
+              hasFocusBuilder: (_, _) => const Text('FOCUS'),
+              hasNoFocusBuilder: (_, _) => const Text('NO_FOCUS'),
             ),
           ),
         ),
@@ -69,8 +69,8 @@ void main() {
                   focusNode: nodeA,
                   autofocus: true,
                   child: FocusBuilder(
-                    hasFocusBuilder: (_, __) => const Text('A_FOCUS'),
-                    hasNoFocusBuilder: (_, __) => const Text('A_NO'),
+                    hasFocusBuilder: (_, _) => const Text('A_FOCUS'),
+                    hasNoFocusBuilder: (_, _) => const Text('A_NO'),
                   ),
                 ),
                 Focus(
