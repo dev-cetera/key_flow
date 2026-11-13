@@ -553,6 +553,76 @@ void main() {
       expect(ids, isNot(contains('keyflow.palette')));
     });
 
+    testWidgets(
+      'a command with input gets the arguments and returns a result',
+      (tester) async {
+        final inputs = <Map<String, Object?>>[];
+        const schema = {
+          'type': 'object',
+          'properties': {
+            'name': {'type': 'string'},
+          },
+          'required': ['name'],
+        };
+        final controller = await pumpApp(
+          tester,
+          commands: [
+            ...appCommands,
+            KeyCommand(
+              id: 'open',
+              label: 'Open',
+              keys: const ['o'],
+              onRun: (_) => ran.add('open'),
+              inputSchema: schema,
+              onInput: (_, input) {
+                inputs.add(input);
+                return 'opened ${input['name']}';
+              },
+            ),
+            KeyCommand(
+              id: 'agent_only',
+              label: 'Agent only',
+              inputSchema: schema,
+              onInput: (_, input) => input['name'],
+            ),
+          ],
+        );
+        final tools = controller.currentTree.toToolList();
+        final open = tools.firstWhere((tool) => tool['name'] == 'open');
+        expect(open['parameters'], schema);
+        expect(
+          tools.firstWhere((tool) => tool['name'] == 'save')['parameters'],
+          {'type': 'object', 'properties': <String, Object?>{}},
+        );
+
+        expect(await controller.runTool('open', {'name': 'a'}), 'opened a');
+        expect(await controller.run('open', input: {'name': 'b'}), 'opened b');
+        expect(inputs, [
+          {'name': 'a'},
+          {'name': 'b'},
+        ]);
+        // A person's keys still run onRun.
+        await press(tester, 'o');
+        expect(ran, ['open']);
+        expect(await controller.run('agent_only'), isNull);
+        expect(await controller.runTool('agent_only', {'name': 'x'}), 'x');
+        await expectLater(
+          controller.run('save', input: const {}),
+          throwsStateError,
+        );
+
+        // Agent-only commands stay out of the places a person picks from.
+        final agentOnly = controller.currentTree.find('agent_only')!;
+        expect(agentOnly.isHiddenFrom(KeySurface.palette), isTrue);
+        expect(agentOnly.isHiddenFrom(KeySurface.menuBar), isTrue);
+        expect(agentOnly.isHiddenFrom(KeySurface.agents), isFalse);
+        final listed = controller.currentTree.toCommandList(
+          surface: KeySurface.palette,
+        );
+        expect(listed.map((c) => c['id']), isNot(contains('agent_only')));
+      },
+    );
+
     testWidgets('run opens a group by id', (tester) async {
       final controller = await pumpApp(tester);
       await controller.run('go');

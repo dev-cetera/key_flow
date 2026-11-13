@@ -76,16 +76,17 @@ class KeyPrefixPanel extends StatelessWidget {
                 child: Wrap(
                   children: [
                     for (final option in next)
-                      _PrefixOption(
-                        option: option,
-                        onPressed: () => switch (option.item) {
-                          KeyGroupEntry group => controller.openEntry(group),
-                          KeyCommandEntry command => controller.runEntry(
-                            command,
-                          ),
-                        },
-                        style: style,
-                      ),
+                      if (!option.item.isHiddenFrom(KeySurface.prefixPanel))
+                        _PrefixOption(
+                          option: option,
+                          onPressed: () => switch (option.item) {
+                            KeyGroupEntry group => controller.openEntry(group),
+                            KeyCommandEntry command => controller.runEntry(
+                              command,
+                            ),
+                          },
+                          style: style,
+                        ),
                   ],
                 ),
               ),

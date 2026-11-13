@@ -115,20 +115,20 @@ final class KeyTree {
 
   /// The commands an AI model may call now, as tool definitions: one per
   /// enabled command not hidden from [KeySurface.agents], each with a `name`,
-  /// a `description` and empty JSON-schema `parameters`.
+  /// a `description` and JSON-schema `parameters`: the command's
+  /// [KeyCommand.inputSchema], or an empty object when it takes no input.
   ///
   /// Hand them to the model in its provider's shape, and run the one it calls
-  /// with [KeyFlowController.runTool].
+  /// with [KeyFlowController.runTool], passing the arguments it gave.
   List<Map<String, Object?>> toToolList() {
     return [
       for (final MapEntry(key: name, value: command) in _toolNames.entries)
         {
           'name': name,
           'description': command.toolDescription,
-          'parameters': const {
-            'type': 'object',
-            'properties': <String, Object?>{},
-          },
+          'parameters':
+              command.command.inputSchema ??
+              const {'type': 'object', 'properties': <String, Object?>{}},
         },
     ];
   }
@@ -139,7 +139,7 @@ final class KeyTree {
   late final Map<String, KeyCommandEntry> _toolNames = () {
     final names = <String, KeyCommandEntry>{};
     for (final command in commands) {
-      if (!command.enabled || command.isHiddenFrom(KeySurface.agents)) {
+      if (!command.agentCanRun || command.isHiddenFrom(KeySurface.agents)) {
         continue;
       }
       // Tool names allow letters, digits, "_" and "-", up to 64 characters.
@@ -272,8 +272,25 @@ final class KeyCommandEntry extends KeyItemEntry {
   @override
   String? get description => command.description;
 
-  /// Whether it can run now.
+  /// Whether a person can run it now: from its keys, a menu, the palette or
+  /// a linked control.
   bool get enabled => command.enabled && command.onRun != null;
+
+  /// Whether it takes input from code or an agent; see [KeyCommand.onInput].
+  bool get acceptsInput => command.onInput != null;
+
+  /// Whether code or an agent can run it now, with input or without.
+  bool get agentCanRun => command.enabled && (enabled || acceptsInput);
+
+  /// A command with only [KeyCommand.onInput] is for code and agents, so it is
+  /// hidden from every place a person picks from.
+  @override
+  bool isHiddenFrom(KeySurface surface) {
+    if (command.onRun == null && acceptsInput && surface != KeySurface.agents) {
+      return true;
+    }
+    return super.isHiddenFrom(surface);
+  }
 
   /// Whether a switch is on; null for a command that is not a switch.
   bool? get checked => command.checked;
@@ -283,6 +300,19 @@ final class KeyCommandEntry extends KeyItemEntry {
     final context = this.context;
     return command.onRun?.call(
       context != null && context.mounted ? context : fallback,
+    );
+  }
+
+  /// Runs [KeyCommand.onInput] with [input], in [fallback] when the scope
+  /// that declared it is gone, and gives back what it returned.
+  FutureOr<Object?> runWithInput(
+    BuildContext fallback,
+    Map<String, Object?> input,
+  ) {
+    final context = this.context;
+    return command.onInput?.call(
+      context != null && context.mounted ? context : fallback,
+      input,
     );
   }
 
@@ -310,6 +340,7 @@ final class KeyCommandEntry extends KeyItemEntry {
       'shortcuts': [for (final binding in full) binding.describe()],
       'enabled': enabled,
       if (checked != null) 'checked': checked,
+      if (command.inputSchema != null) 'inputSchema': command.inputSchema,
     };
   }
 }

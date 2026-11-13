@@ -344,35 +344,54 @@ class KeyFlowController extends ChangeNotifier {
   /// Runs the command with this full id where the person is now, or opens
   /// the group with it.
   ///
-  /// Completes when the command has finished. Throws an [ArgumentError] when
-  /// nothing here has this id, and a [StateError] when the command cannot
-  /// run now.
-  Future<void> run(String id) async {
+  /// With [input], or for a command that only takes input, runs its
+  /// [KeyCommand.onInput] and completes with what that returned; otherwise
+  /// runs [KeyCommand.onRun] and completes with null. Throws an
+  /// [ArgumentError] when nothing here has this id, and a [StateError] when
+  /// the command cannot run now or cannot take input.
+  Future<Object?> run(String id, {Map<String, Object?>? input}) async {
     final host = _requireHost();
     final item = currentTree.find(id);
     switch (item) {
       case null:
         throw ArgumentError.value(id, 'id', 'no command or group here');
       case KeyGroupEntry():
+        if (input != null) {
+          throw ArgumentError.value(id, 'id', 'a group takes no input');
+        }
         host._openGroup(item, currentTree);
+        return null;
+      case KeyCommandEntry()
+          when input != null || (!item.enabled && item.acceptsInput):
+        if (!item.acceptsInput) {
+          throw StateError('"$id" takes no input');
+        }
+        if (!item.agentCanRun) throw StateError('"$id" cannot run now');
+        host._closeAll();
+        host.widget.onCommandRun?.call(item);
+        return item.runWithInput(host.context, input ?? const {});
       case KeyCommandEntry() when !item.enabled:
         throw StateError('"$id" cannot run now');
       case KeyCommandEntry():
         host._closeAll();
         host.widget.onCommandRun?.call(item);
         await item.run(host.context);
+        return null;
     }
   }
 
-  /// Runs the command a model called by a name from [KeyTree.toToolList].
+  /// Runs the command a model called by a name from [KeyTree.toToolList],
+  /// with the arguments it gave, and completes with what the command
+  /// returned (null for one that takes no input).
   ///
   /// Throws an [ArgumentError] when no command has that name now.
-  Future<void> runTool(String name) {
+  Future<Object?> runTool(String name, [Map<String, Object?>? arguments]) {
     final command = currentTree.commandForTool(name);
     if (command == null) {
       throw ArgumentError.value(name, 'name', 'no such tool here');
     }
-    return run(command.id);
+    final takesInput = command.acceptsInput;
+    return run(command.id, input: takesInput ? (arguments ?? const {}) : null);
   }
 
   /// A callback that runs the command with this full id among those in force

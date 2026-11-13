@@ -73,8 +73,30 @@ final class KeyCommand extends KeyNode {
   /// own, these come after the group's: `S` in a group on `G` is `G S`.
   final List<String> keys;
 
-  /// What it does. Given the context of the scope that declared it.
+  /// What it does when a person runs it: from its keys, a menu, the palette
+  /// or a linked control. Given the context of the scope that declared it.
   final FutureOr<void> Function(BuildContext context)? onRun;
+
+  /// What the command takes when code or an agent runs it, as a JSON Schema
+  /// object: `{'type': 'object', 'properties': {...}, 'required': [...]}`.
+  /// [KeyTree.toToolList] hands it to the model as the tool's parameters.
+  /// Needs [onInput].
+  final Map<String, Object?>? inputSchema;
+
+  /// What it does when run with input, through
+  /// [KeyFlowController.runTool] or [KeyFlowController.run]. Given the
+  /// context of the scope that declared it and the input, which follows
+  /// [inputSchema] as far as the caller kept to it: check what you read. What
+  /// it returns is handed back to the caller, so an agent can read the
+  /// result.
+  ///
+  /// A command with [onInput] and no [onRun] is for code and agents only: it
+  /// is left out of the menu bar, the palette and the panels.
+  final FutureOr<Object?> Function(
+    BuildContext context,
+    Map<String, Object?> input,
+  )?
+  onInput;
 
   /// Whether it can run now. A disabled command still shows, greyed out.
   final bool enabled;
@@ -92,13 +114,18 @@ final class KeyCommand extends KeyNode {
     this.description,
     this.keys = const [],
     this.onRun,
+    this.inputSchema,
+    this.onInput,
     this.enabled = true,
     this.checked,
     this.hiddenFrom = const {},
-  });
+  }) : assert(
+         inputSchema == null || onInput != null,
+         'inputSchema needs onInput',
+       );
 }
 
-// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
 /// A named folder of commands, as deep as needed.
 ///
