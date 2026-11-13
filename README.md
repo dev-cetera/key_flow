@@ -146,10 +146,28 @@ The same commands reach an agent three ways.
 final keys = KeyFlow.of(context);
 final tools = keys.currentTree.toToolList();   // [{name, description, parameters}]
 // ... the model calls a tool by name ...
-await keys.runTool(toolCall.name);
+final result = await keys.runTool(toolCall.name, toolCall.arguments);
 ```
 
-`toCommandList()` gives the same commands as plain data (id, label, path, keys from the top, shortcuts as shown, enabled, checked). `run(id)` runs a command or opens a group; `onCommandRun` tells the app, and so its AI, what the person just did.
+A command can take input from an agent or from code. Give it an `inputSchema` (a JSON Schema object, which becomes the tool's `parameters`) and an `onInput`, whose return value goes back to the caller for the model to read:
+
+```dart
+KeyCommand(
+  id: 'open_project',
+  label: 'Open project',
+  onRun: (context) => showProjectPicker(context),     // a person picks
+  inputSchema: {
+    'type': 'object',
+    'properties': {'name': {'type': 'string'}},
+    'required': ['name'],
+  },
+  onInput: (context, input) => openProject(input['name'] as String),
+)
+```
+
+A command with `onInput` and no `onRun` is for code and agents only, and stays out of the menus, the palette and the panels.
+
+`toCommandList()` gives the same commands as plain data (id, label, path, keys from the top, shortcuts as shown, enabled, checked, input schema). `run(id)` runs a command or opens a group, and `run(id, input: {...})` runs a command's `onInput`; `onCommandRun` tells the app, and so its AI, what the person just did.
 
 **An agent driving the app from outside** (through accessibility and the keyboard, such as apprentice). Every linked control and panel line is a named button. On macOS its value is its shortcut, since macOS drops the accessibility hint, so an agent reads `button "Run" value="⌘R"` and can press the key. The palette and the shortcut sheet are readable text, and native menus show each shortcut.
 
