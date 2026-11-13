@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [0.4.0]
+
+- Merge branch 'feat/command-input'
+
+
 ## [0.3.0]
 
 - feat!: a tree of commands replaces the flat key map: `KeyFlow` at the top, `KeyFlowScope` for each part of the screen, `KeyCommand` and `KeyGroup` nested as deep as needed, merged by id across scopes
