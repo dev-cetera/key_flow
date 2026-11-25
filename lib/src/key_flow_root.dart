@@ -18,6 +18,7 @@ import 'package:flutter/scheduler.dart';
 
 import '/key_flow.dart';
 import '_key_player.dart';
+import '_key_recorder.dart';
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
@@ -379,12 +380,14 @@ class KeyFlowController extends ChangeNotifier {
         if (args.isNotEmpty) {
           throw ArgumentError.value(args, 'args', '"$id" is a group');
         }
+        host._recorder?.ran(id, const {});
         host._openGroup(item, currentTree);
       case KeyCommandEntry() when !item.enabled:
         throw StateError('"$id" cannot run now');
       case KeyCommandEntry():
         // Checked before anything changes, so a bad call changes nothing.
         KeyArgs.check(item.params, args);
+        host._recorder?.ran(id, args);
         host._closeAll();
         host.widget.onCommandRun?.call(item);
         await item.run(host.context, args: args);
@@ -437,6 +440,41 @@ class KeyFlowController extends ChangeNotifier {
 
   /// Stops the script playing, if any.
   void stopPlaying() => _host?._player.stop();
+
+  /// Starts writing down what happens in the app as steps of a script to
+  /// play back later: presses on [KeyAnchor]s (taps, holds, drags), the keys
+  /// key_flow handles, text typed into fields (Enter as a submit), commands
+  /// run from code, agents, menus and panels, and the steps of scripts
+  /// played meanwhile, as they are. Add captions with [KeyRecording.note].
+  ///
+  /// What no step can replay, such as a press inside no anchor, is listed in
+  /// [KeyRecording.misses] rather than left out unsaid. A badge shows while
+  /// it records. Throws a [StateError] when a recording is running already.
+  KeyRecording startRecording() {
+    final host = _requireHost();
+    if (host._recorder != null) {
+      throw StateError('A recording is running already');
+    }
+    final recording = KeyRecording();
+    host._recorder = KeyRecorder(host: host, recording: recording)..start();
+    host._stage.showRecording(true);
+    _changed();
+    return recording;
+  }
+
+  /// Stops the recording running and returns it, ended. Throws a
+  /// [StateError] when none is running.
+  KeyRecording stopRecording() {
+    final host = _requireHost();
+    final recorder = host._recorder;
+    if (recorder == null) throw StateError('No recording is running');
+    host._stopRecorder();
+    _changed();
+    return recorder.recording;
+  }
+
+  /// The recording running, if any.
+  KeyRecording? get recording => _host?._recorder?.recording;
 
   /// A callback that runs the command with this full id among those in force
   /// at [context], or null when it cannot run now: an `onPressed` that greys
@@ -538,10 +576,12 @@ class _KeyFlowData extends InheritedWidget {
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
-class _KeyFlowState extends State<KeyFlow> implements KeyPlayerHost {
+class _KeyFlowState extends State<KeyFlow>
+    implements KeyPlayerHost, KeyRecorderHost {
   late KeyFlowController _controller;
   final _stage = KeyStage();
   late final _player = KeyPlayer(host: this, stage: _stage);
+  KeyRecorder? _recorder;
   VoidCallback? _closeWebBridge;
   bool _ownsController = false;
 
@@ -635,8 +675,26 @@ class _KeyFlowState extends State<KeyFlow> implements KeyPlayerHost {
   @override
   KeyFlowController get controller => _controller;
 
+  @override
+  bool get isPlaying => _player.isPlaying;
+
+  @override
+  bool get isPanelShowing => _panel != KeyFlowPanel.none;
+
+  @override
+  void played(KeyStep step, String defaultCursor, List<KeyCursor> cursors) {
+    _recorder?.played(step, defaultCursor, cursors);
+  }
+
+  void _stopRecorder() {
+    _recorder?.stop();
+    _recorder = null;
+    _stage.showRecording(false);
+  }
+
   void _detach() {
     _player.stop();
+    _stopRecorder();
     if (identical(_controller._host, this)) _controller._host = null;
     if (_ownsController) _controller.dispose();
   }
@@ -773,6 +831,12 @@ class _KeyFlowState extends State<KeyFlow> implements KeyPlayerHost {
       isRepeat: isRepeat,
       inTextField: _isTyping(),
     );
+    if (match is! KeyMatchIgnored) {
+      _recorder?.stroke(
+        stroke,
+        done: match is KeyMatchRun || match is KeyMatchClosed,
+      );
+    }
     switch (match) {
       case KeyMatchIgnored():
         return KeyEventResult.ignored;
@@ -872,6 +936,7 @@ class _KeyFlowState extends State<KeyFlow> implements KeyPlayerHost {
     // Give the focus back first, so a command that moves the focus wins.
     _closeAll();
     if (!command.enabled) return;
+    _recorder?.ran(command.id, const {});
     widget.onCommandRun?.call(command);
     Future<void>.sync(() => command.run(context)).catchError((
       Object error,
@@ -1111,6 +1176,9 @@ class KeyFlowStrings {
   /// After a command that cannot run now.
   final String unavailable;
 
+  /// The badge showing while a recording runs.
+  final String recording;
+
   const KeyFlowStrings({
     this.searchHint = 'Search commands',
     this.noMatches = 'No commands match',
@@ -1120,5 +1188,6 @@ class KeyFlowStrings {
     this.jumpFooter =
         'Type the letters on a control to press it · Esc to cancel',
     this.unavailable = 'not available now',
+    this.recording = 'Recording',
   });
 }

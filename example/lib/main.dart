@@ -20,6 +20,7 @@
 //   ↑ ↓       move through the projects      View ▸ Vim keys: J and K
 //   ⌘⇧A       what agents see: the commands as AI tools, live
 //   ⌘⇧T       show me around: two cursors play a scripted tour
+//   ⌘⇧R       record steps (again to stop); Help ▸ Play the recording
 //
 // "Phone demo" opens a shopping list in a phone with a "Show me" button:
 // fingertips tap, hold, drag, swipe, scroll, slide and move between pages.
@@ -71,6 +72,7 @@ class _ExampleAppState extends State<ExampleApp> {
   var _agentView = false;
   var _vimKeys = false;
   var _status = 'Press ⌘K to search, ? for every shortcut.';
+  KeyScript? _recorded;
 
   @override
   void initState() {
@@ -149,6 +151,30 @@ class _ExampleAppState extends State<ExampleApp> {
       ),
     );
     setState(() => _status = 'The tour ${end.name}.');
+  }
+
+  /// Starts recording, or stops and keeps the recording to play back. The
+  /// recording is logged as JSON, ready to save and play with
+  /// `KeyScript.fromJson` (or `keyFlow.play` in the browser).
+  void _toggleRecording() {
+    if (_keys.recording == null) {
+      _keys.startRecording();
+      setState(() => _status = 'Recording: use the app, then ⌘⇧R to stop.');
+      return;
+    }
+    final recording = _keys.stopRecording();
+    debugPrint('key_flow recording: ${jsonEncode(recording.toJson())}');
+    setState(() {
+      _recorded = recording.toScript();
+      _status =
+          'Recorded ${recording.steps.length} steps'
+          '${recording.misses.isEmpty ? '' : ', ${recording.misses.length} missed (see the log)'}.';
+    });
+  }
+
+  Future<void> _playRecording() async {
+    final end = await _keys.play(_recorded!);
+    setState(() => _status = 'The recording ${end.name}.');
   }
 
   void _openPhoneDemo({bool playAtStart = false}) {
@@ -230,6 +256,22 @@ class _ExampleAppState extends State<ExampleApp> {
           keys: const ['meta+shift+t'],
           enabled: !_keys.isPlaying,
           onRun: (_) => _showAround(),
+          hiddenFrom: const {KeySurface.agents},
+        ),
+        KeyCommand(
+          id: 'record',
+          label: _keys.recording == null ? 'Record steps' : 'Stop recording',
+          description: 'Writes down what you do, to play back later',
+          keys: const ['meta+shift+r'],
+          enabled: !_keys.isPlaying,
+          onRun: (_) => _toggleRecording(),
+          hiddenFrom: const {KeySurface.agents},
+        ),
+        KeyCommand(
+          id: 'replay',
+          label: 'Play the recording',
+          enabled: _recorded != null && !_keys.isPlaying,
+          onRun: (_) => _playRecording(),
           hiddenFrom: const {KeySurface.agents},
         ),
       ],
@@ -401,6 +443,7 @@ class _ExampleAppState extends State<ExampleApp> {
                   ),
                 ),
               ),
+              const RecordButtons(),
               KeyAnchor(
                 id: 'phone-demo',
                 child: TextButton(

@@ -23,6 +23,7 @@ export './key_flow_web_bridge.dart';
 export './key_matcher.dart';
 export './key_node.dart';
 export './key_param.dart';
+export './key_recording.dart';
 export './key_script.dart';
 export './key_target.dart';
 export './key_tree.dart';

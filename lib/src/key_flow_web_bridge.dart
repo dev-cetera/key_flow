@@ -33,6 +33,9 @@ import '_web_bridge_stub.dart'
 /// await keyFlow.runTool('add', {text: 'Milk'})
 /// await keyFlow.play({steps: [{do: 'tap', at: 'add'}]})  // 'finished'
 /// keyFlow.stop()                       // stops a playing script
+/// await keyFlow.record()               // writes down what happens next
+/// await keyFlow.note('Tick things off')  // a caption in the recording
+/// await keyFlow.stopRecording()        // {script, misses}
 /// ```
 ///
 /// Scripts and args are given as objects or JSON text. A failure rejects the
@@ -62,6 +65,12 @@ final class KeyFlowWebBridge {
       '$name.runTool(name, args?)  runs a tool from tools()',
       '$name.play(script)  plays a script; resolves "finished" or "stopped"',
       '$name.stop()  stops a playing script',
+      '$name.record()  starts recording presses, keys, typing, commands and '
+          'played steps',
+      '$name.note(text)  adds a caption to the recording',
+      '$name.recording()  the recording so far: {script, misses}, or null',
+      '$name.stopRecording()  stops it; returns {script, misses}, the script '
+          'ready for play()',
       'A script: {cursors?: [{id, kind: "mouse"|"touch", label?, color?}], '
           'speed?: 1, steps: [...]}',
       'Steps: {do: "point"|"tap", at}, {do: "hold", at, ms?}, '
@@ -112,6 +121,24 @@ final class KeyFlowWebBridge {
 
   /// Stops a playing script.
   void stop() => controller.stopPlaying();
+
+  /// Starts a recording; see [KeyFlowController.startRecording].
+  void record() => controller.startRecording();
+
+  /// Adds a caption to the recording running.
+  void note(String text) {
+    final recording = controller.recording;
+    if (recording == null) throw StateError('No recording is running');
+    recording.note(text);
+  }
+
+  /// The recording running, as plain data, or null.
+  Map<String, Object?>? recording() => controller.recording?.toJson();
+
+  /// Stops the recording and returns it as plain data.
+  Map<String, Object?> stopRecording() {
+    return controller.stopRecording().toJson();
+  }
 
   static Map<String, Object?> _args(Object? args) {
     return switch (args) {

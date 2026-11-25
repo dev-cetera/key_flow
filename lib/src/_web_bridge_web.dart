@@ -39,6 +39,24 @@ void Function() openWebBridge(KeyFlowWebBridge bridge, String name) {
     return _promise(() async => (await bridge.play(script.dartify())).toJS);
   }).toJS;
   api['stop'] = bridge.stop.toJS;
+  // These fail when no recording runs, or one runs already: as promises,
+  // so the failure reads as an Error.
+  api['record'] = (() {
+    return _promise(() async {
+      bridge.record();
+      return null;
+    });
+  }).toJS;
+  api['note'] = ((JSString text) {
+    return _promise(() async {
+      bridge.note(text.toDart);
+      return null;
+    });
+  }).toJS;
+  api['recording'] = (() => bridge.recording().jsify()).toJS;
+  api['stopRecording'] = (() {
+    return _promise(() async => bridge.stopRecording().jsify());
+  }).toJS;
   globalContext[name] = api;
   return () {
     if (identical(globalContext[name], api)) globalContext.delete(name.toJS);

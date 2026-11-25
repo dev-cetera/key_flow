@@ -236,6 +236,30 @@ Steps name what they act on by **anchor**. `KeyTarget` and `KeyHint` are anchors
 
 Escape, `stopPlaying()` or a press of the person's own stops a script (`personPress: KeyPersonPress.ignored` keeps it playing, for recording); `play` then completes with `KeyPlayEnd.stopped`. Scripts also read and write JSON (`KeyScript.fromJson`, `toJson`), which is what the browser bridge takes. `speed: 2` plays twice as fast.
 
+### Recording a script
+
+Rather than write a script, do it once and keep what happened:
+
+```dart
+final keys = KeyFlow.of(context);
+final recording = keys.startRecording();   // a "Recording" badge shows
+recording.note('Add something to the list'); // a caption step
+// ... use the app: tap, hold, drag, type, press keys, run commands ...
+keys.stopRecording();
+final json = recording.toJson();           // {script, misses}: log it, save it
+await keys.play(KeyScript.fromJson(json['script']! as Map<String, Object?>));
+```
+
+What it writes down:
+
+- **A press**: a tap, a hold or a drag, on the innermost anchor under it, named the shortest way that is unique (`tick`, then `row-3/tick`, then `tick[2]`). A press in a list scrolled since the last one gets a `scrollTo` first, when the list is in an anchor.
+- **Typing**: a `type` step for the focused field; Enter on a one-line field adds `submit`.
+- **Keys** key_flow handles, a sequence as one `keys` step (`g i`); ⌘ on Apple platforms and Ctrl elsewhere both write `meta`, so it plays back on either.
+- **Commands** run from code, an agent, a menu or the palette, with their args, as `run` steps; a press that runs one records the press only.
+- **Steps a script plays** while recording, as they are: an agent can drive the app by script and notes and record the lot.
+
+What it can't replay, such as a press on something inside no anchor, goes in `misses` with where and why, rather than being left out silently. The press or keys that stop the recording are left out. In the browser: `await keyFlow.record()`, `await keyFlow.note('…')`, `await keyFlow.stopRecording()`.
+
 ## Checking accessibility in tests
 
 ```dart
@@ -264,7 +288,7 @@ handle.dispose();
 
 ## Example
 
-[example/lib/main.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/main.dart): a projects app run entirely from the keyboard, with menus, nested groups, two areas, linked controls, a text field, Vim keys as a profile, a panel showing what agents see, live, a two-cursor tour (⌘⇧T, or "Show me around"), and a phone demo ([example/lib/phone_demo.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/phone_demo.dart)): a shopping list whose "Show me" button plays fingertips that tap, hold, drag, swipe, scroll, slide, type and move between pages. On the web, open the console and try `keyFlow.help()`.
+[example/lib/main.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/main.dart): a projects app run entirely from the keyboard, with menus, nested groups, two areas, linked controls, a text field, Vim keys as a profile, a panel showing what agents see, live, a two-cursor tour (⌘⇧T, or "Show me around"), recording (⌘⇧R, or "Record", then "Play the recording"; the recording is logged as JSON), and a phone demo ([example/lib/phone_demo.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/phone_demo.dart)): a shopping list whose "Show me" button plays fingertips that tap, hold, drag, swipe, scroll, slide, type and move between pages. On the web, open the console and try `keyFlow.help()`.
 
 ## License
 

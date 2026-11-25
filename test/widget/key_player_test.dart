@@ -22,57 +22,6 @@ import 'package:key_flow/key_flow.dart';
 
 import '../helpers.dart';
 
-/// Plays [script] on [controller], pumping frames until it ends, and
-/// rethrows its failure.
-Future<KeyPlayEnd> playAll(
-  WidgetTester tester,
-  KeyFlowController controller,
-  KeyScript script, {
-  KeyPersonPress personPress = KeyPersonPress.stops,
-  Future<void> Function()? meanwhile,
-  int meanwhileAtFrame = 10,
-}) async {
-  KeyPlayEnd? end;
-  Object? failure;
-  controller
-      .play(script, personPress: personPress)
-      .then<void>(
-        (value) {
-          end = value;
-        },
-        onError: (Object error) {
-          failure = error;
-        },
-      );
-  var ran = false;
-  for (var i = 0; i < 3000 && end == null && failure == null; i++) {
-    await tester.pump(const Duration(milliseconds: 16));
-    if (!ran && meanwhile != null && i == meanwhileAtFrame) {
-      ran = true;
-      await meanwhile();
-    }
-  }
-  if (failure != null) throw failure!;
-  return end!;
-}
-
-/// Plays [script] and expects it to fail with what [matcher] matches.
-Future<void> expectPlayFails(
-  WidgetTester tester,
-  KeyFlowController controller,
-  KeyScript script,
-  Matcher matcher,
-) async {
-  Object? failure;
-  try {
-    await playAll(tester, controller, script);
-  } catch (error) {
-    failure = error;
-  }
-  expect(failure, matcher);
-  expect(controller.isPlaying, isFalse);
-}
-
 void main() {
   late List<String> log;
   late KeyFlowController controller;

@@ -36,6 +36,10 @@ abstract interface class KeyPlayerHost {
   /// Presses [stroke] as if typed, where the person is. False when nothing
   /// here takes it.
   bool pressStroke(KeyStroke stroke);
+
+  /// [step] has played, with [defaultCursor] for a step naming none, out of
+  /// the script's [cursors]: for a recording running meanwhile.
+  void played(KeyStep step, String defaultCursor, List<KeyCursor> cursors);
 }
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -67,8 +71,18 @@ final class KeyStage extends ChangeNotifier {
   /// there.
   final _lastPositions = <String, Offset>{};
 
+  /// Whether a recording is running, which shows as a badge.
+  bool get isRecording => _isRecording;
+  var _isRecording = false;
+
   /// Whether anything shows.
-  bool get isActive => _cursors.isNotEmpty || _caption != null;
+  bool get isActive => _cursors.isNotEmpty || _caption != null || _isRecording;
+
+  /// Shows or hides the recording badge.
+  void showRecording(bool on) {
+    _isRecording = on;
+    notifyListeners();
+  }
 
   void _addCursor(KeyCursor cursor, Offset position) {
     _cursors[cursor.id] = KeyStageCursor._(cursor, position);
@@ -235,6 +249,7 @@ final class KeyPlayer {
       await _fade(to: 1);
       for (final step in script.steps) {
         await _do(step, cursors.first.id);
+        host.played(step, cursors.first.id, cursors);
       }
       await _fade(to: 0);
       return KeyPlayEnd.finished;
@@ -935,6 +950,18 @@ class _KeyStageLayerState extends State<KeyStageLayer>
                   ],
                 ),
               ),
+            if (stage.isRecording)
+              Positioned(
+                top: (MediaQuery.maybePaddingOf(context)?.top ?? 0) + 8,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _RecordingBadge(
+                    text: KeyFlow.of(context).strings.recording,
+                    style: style,
+                  ),
+                ),
+              ),
             for (final cursor in stage.cursors) ..._cursor(cursor, style),
           ],
         ),
@@ -1013,6 +1040,47 @@ class _KeyStageLayerState extends State<KeyStageLayer>
     return color.computeLuminance() > 0.5
         ? const Color(0xFF000000)
         : const Color(0xFFFFFFFF);
+  }
+}
+
+class _RecordingBadge extends StatelessWidget {
+  final String text;
+  final KeyFlowStyle style;
+
+  const _RecordingBadge({required this.text, required this.style});
+
+  static const _red = Color(0xFFE53935);
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: style.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _red),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(color: _red, shape: BoxShape.circle),
+              child: SizedBox.square(dimension: 10),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              text,
+              style: style.textStyle.copyWith(
+                color: style.onSurface,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

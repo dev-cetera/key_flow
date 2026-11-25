@@ -121,6 +121,8 @@ class _PhoneDemoState extends State<PhoneDemo> {
               padding: const EdgeInsets.only(right: 12),
               child: Text(_ended),
             ),
+          const RecordButtons(),
+          const SizedBox(width: 8),
           ListenableBuilder(
             listenable: keys,
             builder: (context, _) => KeyAnchor(
@@ -157,6 +159,46 @@ class _PhoneDemoState extends State<PhoneDemo> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+/// "Record" (or "Stop") and "Play the recording": the controls of the
+/// example's `help.record` and `help.replay` commands.
+class RecordButtons extends StatelessWidget {
+  const RecordButtons({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final keys = KeyFlow.of(context);
+    return ListenableBuilder(
+      listenable: keys,
+      builder: (context, _) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          KeyHint(
+            command: 'help.record',
+            child: TextButton.icon(
+              onPressed: keys.callbackFor(context, 'help.record'),
+              icon: Icon(
+                keys.recording == null ? Icons.fiber_manual_record : Icons.stop,
+                color: Colors.red,
+              ),
+              label: Text(keys.recording == null ? 'Record' : 'Stop'),
+            ),
+          ),
+          KeyHint(
+            command: 'help.replay',
+            child: TextButton.icon(
+              onPressed: keys.callbackFor(context, 'help.replay'),
+              icon: const Icon(Icons.replay),
+              label: const Text('Play the recording'),
+            ),
+          ),
+        ],
       ),
     );
   }
