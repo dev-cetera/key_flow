@@ -115,7 +115,8 @@ final class KeyTree {
 
   /// The commands an AI model may call now, as tool definitions: one per
   /// enabled command not hidden from [KeySurface.agents], each with a `name`,
-  /// a `description` and empty JSON-schema `parameters`.
+  /// a `description` and JSON-schema `parameters` made from the command's
+  /// [KeyCommand.params].
   ///
   /// Hand them to the model in its provider's shape, and run the one it calls
   /// with [KeyFlowController.runTool].
@@ -125,10 +126,7 @@ final class KeyTree {
         {
           'name': name,
           'description': command.toolDescription,
-          'parameters': const {
-            'type': 'object',
-            'properties': <String, Object?>{},
-          },
+          'parameters': command.parametersSchema,
         },
     ];
   }
@@ -273,17 +271,45 @@ final class KeyCommandEntry extends KeyItemEntry {
   String? get description => command.description;
 
   /// Whether it can run now.
-  bool get enabled => command.enabled && command.onRun != null;
+  bool get enabled =>
+      command.enabled &&
+      (command.onRun != null || command.onRunWithArgs != null);
+
+  /// The values it takes; see [KeyCommand.params].
+  List<KeyParam> get params => command.params;
 
   /// Whether a switch is on; null for a command that is not a switch.
   bool? get checked => command.checked;
 
-  /// Runs it, in [fallback] when the scope that declared it is gone.
-  FutureOr<void> run(BuildContext fallback) {
+  /// Runs it with [args], in [fallback] when the scope that declared it is
+  /// gone.
+  ///
+  /// Throws an [ArgumentError] when [args] do not fit its [params].
+  FutureOr<void> run(
+    BuildContext fallback, {
+    Map<String, Object?> args = const {},
+  }) {
+    final checked = KeyArgs.check(command.params, args);
     final context = this.context;
-    return command.onRun?.call(
-      context != null && context.mounted ? context : fallback,
-    );
+    final into = context != null && context.mounted ? context : fallback;
+    final onRunWithArgs = command.onRunWithArgs;
+    if (onRunWithArgs != null) return onRunWithArgs(into, checked);
+    return command.onRun?.call(into);
+  }
+
+  /// Its [params] as the JSON schema of a tool's parameters.
+  Map<String, Object?> get parametersSchema {
+    return {
+      'type': 'object',
+      'properties': {
+        for (final param in params) param.name: param.toJsonSchema(),
+      },
+      if (params.any((param) => param.required))
+        'required': [
+          for (final param in params)
+            if (param.required) param.name,
+        ],
+    };
   }
 
   /// How [KeyTree.toToolList] describes it to a model.
@@ -310,6 +336,8 @@ final class KeyCommandEntry extends KeyItemEntry {
       'shortcuts': [for (final binding in full) binding.describe()],
       'enabled': enabled,
       if (checked != null) 'checked': checked,
+      if (params.isNotEmpty)
+        'params': [for (final param in params) param.toJson()],
     };
   }
 }
@@ -466,6 +494,46 @@ void _checkId(String id, String where) {
   }
 }
 
+final _paramNamePattern = RegExp(r'^[A-Za-z0-9_]+$');
+
+void _checkCommand(KeyCommand command, String where) {
+  final id = where.isEmpty ? command.id : '$where.${command.id}';
+  if (command.onRun != null && command.onRunWithArgs != null) {
+    throw ArgumentError.value(
+      id,
+      'id',
+      'give onRun or onRunWithArgs, not both',
+    );
+  }
+  if (command.params.isNotEmpty && command.onRun != null) {
+    throw ArgumentError.value(
+      id,
+      'id',
+      'a command with params runs through onRunWithArgs',
+    );
+  }
+  final names = <String>{};
+  for (final param in command.params) {
+    if (!_paramNamePattern.hasMatch(param.name)) {
+      throw ArgumentError.value(
+        param.name,
+        'params',
+        'of "$id": use letters, digits and "_" only',
+      );
+    }
+    if (!names.add(param.name)) {
+      throw ArgumentError.value(param.name, 'params', 'of "$id": given twice');
+    }
+    if (param.choices.isNotEmpty && param.type != KeyParamType.string) {
+      throw ArgumentError.value(
+        param.name,
+        'params',
+        'of "$id": only a string param takes choices',
+      );
+    }
+  }
+}
+
 List<KeyBinding> _parseKeys(List<String> keys, String id) {
   return [
     for (final spec in keys)
@@ -500,6 +568,7 @@ final class _GroupDraft {
         items.add(_DividerDraft(layer));
       case KeyCommand():
         _checkId(node.id, where);
+        _checkCommand(node, where);
         _put(node.id, _CommandDraft(node, layer, context));
       case KeyGroup():
         _checkId(node.id, where);

@@ -276,6 +276,27 @@ class KeyActivator {
         : stroke.physical == physical;
   }
 
+  /// A key press this activator [accepts] on this host, with the modifiers
+  /// it needs held: what a scripted press of it sends.
+  KeyStroke toStroke() {
+    final character = this.character;
+    final logical =
+        this.logical ??
+        (character != null
+            ? (LogicalKeyboardKey.findKeyByKeyId(character.codeUnitAt(0)) ??
+                  LogicalKeyboardKey(character.codeUnitAt(0)))
+            : LogicalKeyboardKey(physical!.usbHidUsage));
+    return KeyStroke(
+      logical: logical,
+      physical: physical ?? const PhysicalKeyboardKey(0),
+      character: character,
+      meta: _wantsMeta,
+      control: _wantsCtrl,
+      shift: shift,
+      alt: alt,
+    );
+  }
+
   /// How a person would write this key: "⌘⇧↩" on Apple platforms,
   /// "Ctrl+Shift+Enter" elsewhere.
   String describe() {

@@ -19,9 +19,13 @@
 //   ⌘R ⌘.     run and stop the project       F2         rename it
 //   ↑ ↓       move through the projects      View ▸ Vim keys: J and K
 //   ⌘⇧A       what agents see: the commands as AI tools, live
+//   ⌘⇧T       show me around: two cursors play a scripted tour
 //
-// Build with --dart-define=KEYFLOW_PANEL=palette (or help, jump, go) to open
-// a panel at start, for screenshots and agent checks.
+// On the web, `keyFlow.help()` in the browser console lists what a browser
+// agent can do: read the commands, run them and play scripts.
+//
+// Build with --dart-define=KEYFLOW_PANEL=palette (or help, jump, go, tour) to
+// open a panel or start the tour at start, for screenshots and agent checks.
 
 import 'dart:convert';
 
@@ -75,6 +79,8 @@ class _ExampleAppState extends State<ExampleApp> {
           _keys.startJump();
         case 'go':
           _keys.openGroup('go');
+        case 'tour':
+          _showAround();
       }
     });
   }
@@ -88,12 +94,53 @@ class _ExampleAppState extends State<ExampleApp> {
 
   Project get _project => _projects[_open];
 
-  void _newProject() {
+  void _newProject([String? name]) {
     setState(() {
       final n = _projects.length + 1;
-      _projects.add(Project('project-$n', 'Project $n'));
+      _projects.add(Project('project-$n', name ?? 'Project $n'));
       _open = _projects.length - 1;
     });
+  }
+
+  /// Plays a tour of the app: two cursors press, type and use the keys for
+  /// real, with captions. Escape, or a click of your own, stops it.
+  Future<void> _showAround() async {
+    final end = await _keys.play(
+      const KeyScript(
+        cursors: [
+          KeyCursor(
+            id: 'ana',
+            kind: KeyCursorKind.mouse,
+            label: 'Ana',
+            color: Color(0xFFE91E63),
+          ),
+          KeyCursor(
+            id: 'ben',
+            kind: KeyCursorKind.touch,
+            label: 'Ben',
+            color: Color(0xFF00897B),
+          ),
+        ],
+        steps: [
+          KeyStep.caption('A scripted tour: real presses and real typing'),
+          KeyStep.tap('project-consulting'),
+          KeyStep.tap('run'),
+          KeyStep.caption('Shortcuts show as they are pressed'),
+          KeyStep.keys('g p 1'),
+          KeyStep.caption('Typing goes into the real field'),
+          KeyStep.type('Send the invoice on Friday', at: 'notes'),
+          KeyStep.caption('Two people at once'),
+          KeyStep.together([
+            KeyStep.point('rename', cursor: 'ana'),
+            KeyStep.tap('project-blog', cursor: 'ben'),
+          ]),
+          KeyStep.caption('An agent runs a command with values'),
+          KeyStep.run('file.add', args: {'name': 'Garden'}),
+          KeyStep.wait(Duration(milliseconds: 800)),
+        ],
+      ),
+    );
+    setState(() => _status = 'The tour ${end.name}.');
   }
 
   Future<void> _rename() async {
@@ -140,6 +187,34 @@ class _ExampleAppState extends State<ExampleApp> {
           label: 'New project',
           keys: const ['meta+n'],
           onRun: (_) => _newProject(),
+        ),
+        // Needs a name, which only code and agents give.
+        KeyCommand(
+          id: 'add',
+          label: 'Add a project by name',
+          params: const [KeyParam(name: 'name', description: 'Its name')],
+          onRunWithArgs: (_, args) => _newProject(args.string('name')),
+          hiddenFrom: const {
+            KeySurface.menuBar,
+            KeySurface.palette,
+            KeySurface.helpSheet,
+          },
+        ),
+      ],
+    ),
+    KeyGroup(
+      id: 'help',
+      label: 'Help',
+      inMenuBar: true,
+      children: [
+        KeyCommand(
+          id: 'tour',
+          label: 'Show me around',
+          description: 'Two cursors show what the app does',
+          keys: const ['meta+shift+t'],
+          enabled: !_keys.isPlaying,
+          onRun: (_) => _showAround(),
+          hiddenFrom: const {KeySurface.agents},
         ),
       ],
     ),
@@ -272,6 +347,8 @@ class _ExampleAppState extends State<ExampleApp> {
       builder: (context, child) => KeyFlow(
         controller: _keys,
         commands: _appCommands,
+        // A demo: any script in the page may drive it.
+        webBridge: 'keyFlow',
         keyOverrides: _vimKeys
             ? const {
                 'next': ['j', 'down'],
@@ -294,7 +371,22 @@ class _ExampleAppState extends State<ExampleApp> {
         ),
         bottomNavigationBar: Padding(
           padding: const EdgeInsets.all(8),
-          child: Text(_status, textAlign: TextAlign.center),
+          child: Row(
+            children: [
+              Expanded(child: Text(_status, textAlign: TextAlign.center)),
+              Builder(
+                builder: (context) => KeyHint(
+                  command: 'help.tour',
+                  child: TextButton(
+                    onPressed: KeyFlow.of(
+                      context,
+                    ).callbackFor(context, 'help.tour'),
+                    child: const Text('Show me around'),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -307,11 +399,15 @@ class _ExampleAppState extends State<ExampleApp> {
       child: ListView(
         children: [
           for (final (i, project) in _projects.indexed)
-            ListTile(
-              title: Text(project.name),
-              subtitle: Text(project.running ? 'Running' : 'Stopped'),
-              selected: i == _open,
-              onTap: () => setState(() => _open = i),
+            KeyAnchor(
+              id: 'project-${project.id}',
+              label: project.name,
+              child: ListTile(
+                title: Text(project.name),
+                subtitle: Text(project.running ? 'Running' : 'Stopped'),
+                selected: i == _open,
+                onTap: () => setState(() => _open = i),
+              ),
             ),
         ],
       ),
@@ -375,13 +471,17 @@ class _ExampleAppState extends State<ExampleApp> {
                 const SizedBox(height: 16),
                 Text(_project.running ? 'Running' : 'Stopped'),
                 const SizedBox(height: 16),
-                TextField(
-                  focusNode: _notes,
-                  maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes',
-                    hintText: 'Letters type here; ⌘ shortcuts still work.',
-                    border: OutlineInputBorder(),
+                KeyAnchor(
+                  id: 'notes',
+                  label: 'Notes',
+                  child: TextField(
+                    focusNode: _notes,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes',
+                      hintText: 'Letters type here; ⌘ shortcuts still work.',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                 ),
               ],

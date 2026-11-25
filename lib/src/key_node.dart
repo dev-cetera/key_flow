@@ -74,7 +74,19 @@ final class KeyCommand extends KeyNode {
   final List<String> keys;
 
   /// What it does. Given the context of the scope that declared it.
+  ///
+  /// A command with [params] uses [onRunWithArgs] instead.
   final FutureOr<void> Function(BuildContext context)? onRun;
+
+  /// The values it takes when code or an agent runs it; see [KeyParam].
+  /// [KeyTree.toToolList] gives them to models as the tool's parameters.
+  final List<KeyParam> params;
+
+  /// What it does, for a command with [params]: given the context of the
+  /// scope that declared it and the values it was run with, checked against
+  /// [params]. Give this or [onRun], not both.
+  final FutureOr<void> Function(BuildContext context, KeyArgs args)?
+  onRunWithArgs;
 
   /// Whether it can run now. A disabled command still shows, greyed out.
   final bool enabled;
@@ -92,6 +104,8 @@ final class KeyCommand extends KeyNode {
     this.description,
     this.keys = const [],
     this.onRun,
+    this.params = const [],
+    this.onRunWithArgs,
     this.enabled = true,
     this.checked,
     this.hiddenFrom = const {},

@@ -34,6 +34,9 @@ import '/key_flow.dart';
 ///
 /// For a control that is already a button, such as an `IconButton`, use
 /// [KeyHint] instead.
+///
+/// It is also a [KeyAnchor] named by the command's full id, so a [KeyScript]
+/// can tap it.
 class KeyTarget extends StatefulWidget {
   /// The full id of the command this control runs.
   final String command;
@@ -137,7 +140,7 @@ class _KeyTargetState extends State<KeyTarget> {
         child: result,
       );
     }
-    return result;
+    return KeyAnchor(id: command.id, label: command.label, child: result);
   }
 }
 
@@ -160,6 +163,9 @@ class _KeyTargetState extends State<KeyTarget> {
 ///   ),
 /// )
 /// ```
+///
+/// It is also a [KeyAnchor] named by the command's full id, so a [KeyScript]
+/// can tap the button.
 class KeyHint extends StatelessWidget {
   /// The full id of the command.
   final String command;
@@ -198,7 +204,7 @@ class KeyHint extends StatelessWidget {
         child: result,
       );
     }
-    return result;
+    return KeyAnchor(id: entry.id, label: entry.label, child: result);
   }
 }
 

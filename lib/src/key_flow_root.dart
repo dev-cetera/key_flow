@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
 import '/key_flow.dart';
+import '_key_player.dart';
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
@@ -58,6 +59,11 @@ import '/key_flow.dart';
 /// [KeyFlowBuiltIns] changes those keys and names. Agents and an app's own AI
 /// reach the same commands through [KeyFlowController.currentTree] and
 /// [KeyFlowController.run].
+///
+/// A [KeyScript] played by [KeyFlowController.play] shows people how things
+/// are done: cursors move over the app and press its controls for real, with
+/// captions. On the web, [webBridge] lets a browser agent read the commands
+/// and play scripts.
 class KeyFlow extends StatefulWidget {
   /// The app-wide commands.
   final List<KeyNode> commands;
@@ -109,6 +115,16 @@ class KeyFlow extends StatefulWidget {
   final Widget Function(BuildContext context, KeyFlowPanel panel, Widget child)?
   panelBuilder;
 
+  /// On the web, the name of a JavaScript object key_flow puts on `window` so
+  /// a browser agent, or a person at the console, can drive the app:
+  /// `window.keyFlow.play({steps: [...]})`. See [KeyFlowWebBridge] for what
+  /// it offers. Null, the default, puts none; elsewhere than the web it does
+  /// nothing.
+  ///
+  /// Anything that runs script in the page can then run every command, so
+  /// give it only where that is wanted, such as a build for developers.
+  final String? webBridge;
+
   const KeyFlow({
     super.key,
     this.commands = const [],
@@ -123,6 +139,7 @@ class KeyFlow extends StatefulWidget {
     this.shortcutsInSemanticsValue,
     this.onCommandRun,
     this.panelBuilder,
+    this.webBridge,
   });
 
   /// The controller of the nearest [KeyFlow] above [context].
@@ -305,6 +322,11 @@ enum KeyFlowPanel {
 class KeyFlowController extends ChangeNotifier {
   _KeyFlowState? _host;
 
+  /// The [KeyAnchor]s under the [KeyFlow]; read them through [spots] and
+  /// [findSpot].
+  @internal
+  final anchors = KeyAnchorRegistry();
+
   /// Where the person is in the tree of commands.
   KeyPosition get position => _host?._matcher.position ?? KeyPosition.top;
 
@@ -341,39 +363,80 @@ class KeyFlowController extends ChangeNotifier {
         (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS);
   }
 
-  /// Runs the command with this full id where the person is now, or opens
-  /// the group with it.
+  /// Runs the command with this full id where the person is now, with
+  /// [args] for its [KeyCommand.params], or opens the group with it.
   ///
   /// Completes when the command has finished. Throws an [ArgumentError] when
-  /// nothing here has this id, and a [StateError] when the command cannot
-  /// run now.
-  Future<void> run(String id) async {
+  /// nothing here has this id or [args] do not fit, and a [StateError] when
+  /// the command cannot run now.
+  Future<void> run(String id, {Map<String, Object?> args = const {}}) async {
     final host = _requireHost();
     final item = currentTree.find(id);
     switch (item) {
       case null:
         throw ArgumentError.value(id, 'id', 'no command or group here');
       case KeyGroupEntry():
+        if (args.isNotEmpty) {
+          throw ArgumentError.value(args, 'args', '"$id" is a group');
+        }
         host._openGroup(item, currentTree);
       case KeyCommandEntry() when !item.enabled:
         throw StateError('"$id" cannot run now');
       case KeyCommandEntry():
+        // Checked before anything changes, so a bad call changes nothing.
+        KeyArgs.check(item.params, args);
         host._closeAll();
         host.widget.onCommandRun?.call(item);
-        await item.run(host.context);
+        await item.run(host.context, args: args);
     }
   }
 
-  /// Runs the command a model called by a name from [KeyTree.toToolList].
+  /// Runs the command a model called by a name from [KeyTree.toToolList],
+  /// with the [args] it gave.
   ///
-  /// Throws an [ArgumentError] when no command has that name now.
-  Future<void> runTool(String name) {
+  /// Throws an [ArgumentError] when no command has that name now, or [args]
+  /// do not fit it.
+  Future<void> runTool(String name, {Map<String, Object?> args = const {}}) {
     final command = currentTree.commandForTool(name);
     if (command == null) {
       throw ArgumentError.value(name, 'name', 'no such tool here');
     }
-    return run(command.id);
+    return run(command.id, args: args);
   }
+
+  /// Every [KeyAnchor] on screen now, on the route on top, in reading order:
+  /// for an agent, what it can point at, tap or type into.
+  List<KeySpot> get spots => anchors.spots();
+
+  /// The one anchor on screen that [place] names; see [KeyPlace].
+  ///
+  /// Throws a [StateError] when none does, or when several do and [place]
+  /// does not say which.
+  KeySpot findSpot(String place) => anchors.find(place);
+
+  /// Plays [script]: its cursors move over the app and press, drag and type
+  /// for real, with its captions, while people watch.
+  ///
+  /// [personPress] says what a press of the person's own does meanwhile;
+  /// Escape and [stopPlaying] stop it too. Completes with how it ended.
+  /// Throws a [StateError] when a script is already playing, and rethrows a
+  /// step's failure (an anchor not on screen, a command that cannot run)
+  /// after taking the cursors away.
+  Future<KeyPlayEnd> play(
+    KeyScript script, {
+    KeyPersonPress personPress = KeyPersonPress.stops,
+  }) {
+    final host = _requireHost();
+    final playing = host._player.play(script, personPress: personPress);
+    _changed();
+    return playing.whenComplete(_changed);
+  }
+
+  /// Whether a script is playing.
+  bool get isPlaying => _host?._player.isPlaying ?? false;
+
+  /// Stops the script playing, if any.
+  void stopPlaying() => _host?._player.stop();
 
   /// A callback that runs the command with this full id among those in force
   /// at [context], or null when it cannot run now: an `onPressed` that greys
@@ -475,8 +538,11 @@ class _KeyFlowData extends InheritedWidget {
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
-class _KeyFlowState extends State<KeyFlow> {
+class _KeyFlowState extends State<KeyFlow> implements KeyPlayerHost {
   late KeyFlowController _controller;
+  final _stage = KeyStage();
+  late final _player = KeyPlayer(host: this, stage: _stage);
+  VoidCallback? _closeWebBridge;
   bool _ownsController = false;
 
   final _matcher = KeyMatcher();
@@ -503,6 +569,16 @@ class _KeyFlowState extends State<KeyFlow> {
     FocusManager.instance.addListener(_keepFocusReachable);
     _keepFocusReachable();
     if (kDebugMode) _noteMacAccessibility();
+    _openWebBridge();
+  }
+
+  void _openWebBridge() {
+    _closeWebBridge?.call();
+    _closeWebBridge = null;
+    final name = widget.webBridge;
+    if (name != null) {
+      _closeWebBridge = KeyFlowWebBridge.open(_controller, name: name);
+    }
   }
 
   static var _notedMacAccessibility = false;
@@ -540,6 +616,10 @@ class _KeyFlowState extends State<KeyFlow> {
     if (!mapEquals(widget.keyOverrides, oldWidget.keyOverrides)) {
       _overrides = Map.of(widget.keyOverrides);
     }
+    if (widget.webBridge != oldWidget.webBridge ||
+        !identical(widget.controller, oldWidget.controller)) {
+      _openWebBridge();
+    }
   }
 
   void _attach(KeyFlowController? given) {
@@ -552,7 +632,11 @@ class _KeyFlowState extends State<KeyFlow> {
     _controller._host = this;
   }
 
+  @override
+  KeyFlowController get controller => _controller;
+
   void _detach() {
+    _player.stop();
     if (identical(_controller._host, this)) _controller._host = null;
     if (_ownsController) _controller.dispose();
   }
@@ -561,7 +645,9 @@ class _KeyFlowState extends State<KeyFlow> {
   void dispose() {
     FocusManager.instance.removeListener(_keepFocusReachable);
     _timer?.cancel();
+    _closeWebBridge?.call();
     _detach();
+    _stage.dispose();
     _rootNode.dispose();
     _panelNode.dispose();
     super.dispose();
@@ -656,13 +742,26 @@ class _KeyFlowState extends State<KeyFlow> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final stroke = KeyStroke.fromEvent(event);
+    if (_player.isPlaying && stroke.isBare(LogicalKeyboardKey.escape)) {
+      _player.stop();
+      return KeyEventResult.handled;
+    }
+    return _onStroke(stroke, isRepeat: event is KeyRepeatEvent);
+  }
+
+  @override
+  bool pressStroke(KeyStroke stroke) {
+    return _onStroke(stroke, isRepeat: false) == KeyEventResult.handled;
+  }
+
+  KeyEventResult _onStroke(KeyStroke stroke, {required bool isRepeat}) {
     // The palette, the help sheet and jump mode read their own keys.
     if (_panel == KeyFlowPanel.palette ||
         _panel == KeyFlowPanel.help ||
         _panel == KeyFlowPanel.jump) {
       return KeyEventResult.ignored;
     }
-    final stroke = KeyStroke.fromEvent(event);
     if (stroke.isModifier) return KeyEventResult.ignored;
     final wasOpen = _matcher.position.isOpen;
     final tree = wasOpen
@@ -671,7 +770,7 @@ class _KeyFlowState extends State<KeyFlow> {
     final match = _matcher.handle(
       stroke,
       tree,
-      isRepeat: event is KeyRepeatEvent,
+      isRepeat: isRepeat,
       inTextField: _isTyping(),
     );
     switch (match) {
@@ -881,6 +980,7 @@ class _KeyFlowState extends State<KeyFlow> {
             ),
             if (_panel != KeyFlowPanel.none)
               Positioned.fill(child: _buildPanel(context)),
+            Positioned.fill(child: KeyStageLayer(stage: _stage)),
           ],
         ),
       ),

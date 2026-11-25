@@ -19,7 +19,8 @@ Declare what your app can do once, as a tree of commands nested as deep as you l
 - **A command palette** (⌘K), **a sheet of every shortcut** (`?` or ⌘/), **jump mode** (⌘J puts letters on every control; type them to press it) and **moving between areas** (F6). Nothing needs a mouse.
 - **Menus**: the macOS menu bar, or a bar drawn in the window on Windows, Linux and the web.
 - **Accessible controls**: anything linked to a command gets its name, keys, enabled and on/off state, and a focus ring.
-- **Plain data for AI**: the commands in force as a list, or as tool definitions for a model, and a way to run them by id.
+- **Plain data for AI**: the commands in force as a list, or as tool definitions for a model with typed parameters, and a way to run them by id.
+- **Shows how it's done**: a script moves one or more cursors over the app, presses its controls for real, types into its fields and shows the keys and captions, for tours, help, and videos for the web and social media. A browser agent can drive it too.
 
 ## Quick start
 
@@ -145,11 +146,41 @@ The same commands reach an agent three ways.
 ```dart
 final keys = KeyFlow.of(context);
 final tools = keys.currentTree.toToolList();   // [{name, description, parameters}]
-// ... the model calls a tool by name ...
-await keys.runTool(toolCall.name);
+// ... the model calls a tool by name, with arguments ...
+await keys.runTool(toolCall.name, args: toolCall.arguments);
 ```
 
-`toCommandList()` gives the same commands as plain data (id, label, path, keys from the top, shortcuts as shown, enabled, checked). `run(id)` runs a command or opens a group; `onCommandRun` tells the app, and so its AI, what the person just did.
+A command that needs values declares them; the tool's `parameters` become their JSON schema, and the values arrive checked:
+
+```dart
+KeyCommand(
+  id: 'add',
+  label: 'Add an item',
+  params: const [
+    KeyParam(name: 'text', description: 'What to add'),
+    KeyParam(name: 'list', required: false, choices: ['home', 'work']),
+  ],
+  onRunWithArgs: (context, args) => addItem(args.string('text'), list: args.maybeString('list')),
+  // Keys, menus and the palette give no values: keep it for code and agents.
+  hiddenFrom: const {KeySurface.menuBar, KeySurface.palette, KeySurface.helpSheet},
+)
+```
+
+A missing, unknown or mistyped value throws an `ArgumentError` before anything runs.
+
+`toCommandList()` gives the same commands as plain data (id, label, path, keys from the top, shortcuts as shown, enabled, checked, params). `run(id, args: {...})` runs a command or opens a group; `onCommandRun` tells the app, and so its AI, what the person just did. `spots` lists what is on screen to point at (see below).
+
+**An agent in the browser** (such as Claude in Chrome). On the web, `KeyFlow(webBridge: 'keyFlow')` puts the same things on `window`, so the agent drives the app by name instead of guessing at pixels on Flutter's canvas:
+
+```js
+keyFlow.help()                                 // what follows, as text
+keyFlow.commands()                             // what can run here
+keyFlow.spots()                                // anchors on screen, with rects
+await keyFlow.runTool('add', {text: 'Milk'})
+await keyFlow.play({steps: [{do: 'tap', at: 'add'}]})   // 'finished' or 'stopped'
+```
+
+A failure rejects with an `Error` saying what went wrong. Any script in the page can then run every command, so turn it on only where that is wanted, such as a build for developers.
 
 **An agent driving the app from outside** (through accessibility and the keyboard, such as apprentice). Every linked control and panel line is a named button. On macOS its value is its shortcut, since macOS drops the accessibility hint, so an agent reads `button "Run" value="⌘R"` and can press the key. The palette and the shortcut sheet are readable text, and native menus show each shortcut.
 
@@ -164,6 +195,45 @@ DispatchQueue.main.async {
 ```
 
 Flutter on macOS does not pass on a text field's label; put a visible label next to each field.
+
+## Showing how it's done
+
+A `KeyScript` plays steps on the real app while people watch: cursors glide to controls and press them for real (the app gets the same pointer events a person's press makes), text is typed a key at a time, pressed keys show as key caps, and captions tell the story. Use it for a tour, a "show me" button in help, or recording videos.
+
+```dart
+final end = await KeyFlow.of(context).play(const KeyScript(
+  cursors: [
+    KeyCursor(id: 'ana', kind: KeyCursorKind.mouse, label: 'Ana', color: Color(0xFFE91E63)),
+    KeyCursor(id: 'ben', kind: KeyCursorKind.touch, label: 'Ben'),
+  ],
+  steps: [
+    KeyStep.caption('Add something to the shared list'),
+    KeyStep.tap('add'),
+    KeyStep.type('Milk', at: 'new-item', submit: true),
+    KeyStep.keys('g i'),
+    KeyStep.together([
+      KeyStep.hold('row-3/tick', cursor: 'ben'),
+      KeyStep.point('inbox', cursor: 'ana'),
+    ]),
+    KeyStep.run('add', args: {'text': 'Eggs'}),
+  ],
+));
+```
+
+| Step | What happens |
+|---|---|
+| `point(at)` | the cursor moves there and rings it |
+| `tap(at)`, `hold(at, duration:)` | a real tap or long press, after scrolling it into view |
+| `drag(at, to: or by:, hold:)` | a real drag, optionally after a long press |
+| `type(text, at:, submit:)` | taps the field, types a key at a time, submits |
+| `keys('meta+k')` | shows the keys and does what they do here |
+| `run(id, args:)` | taps the command's control if one shows; with args, runs it as code |
+| `caption(text)`, `wait(d)`, `waitFor(at)` | tell, pause, wait for something to show |
+| `together([...])` | several cursors at once |
+
+Steps name what they act on by **anchor**. `KeyTarget` and `KeyHint` are anchors already, named by their command's id; wrap anything else in `KeyAnchor(id: 'new-item', child: ...)`. When an id shows more than once, name an anchor around it (`row-3/tick`) or count in reading order (`tick[2]`); an id that matches several things, or none, fails with a list of what is on screen. A press on something covered fails rather than pressing what covers it.
+
+Escape, `stopPlaying()` or a press of the person's own stops a script (`personPress: KeyPersonPress.ignored` keeps it playing, for recording); `play` then completes with `KeyPlayEnd.stopped`. Scripts also read and write JSON (`KeyScript.fromJson`, `toJson`), which is what the browser bridge takes. `speed: 2` plays twice as fast.
 
 ## Checking accessibility in tests
 
@@ -193,7 +263,7 @@ handle.dispose();
 
 ## Example
 
-[example/lib/main.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/main.dart): a projects app run entirely from the keyboard, with menus, nested groups, two areas, linked controls, a text field, Vim keys as a profile, and a panel showing what agents see, live.
+[example/lib/main.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/main.dart): a projects app run entirely from the keyboard, with menus, nested groups, two areas, linked controls, a text field, Vim keys as a profile, a panel showing what agents see, live, and a two-cursor tour (⌘⇧T, or "Show me around"). On the web, open the console and try `keyFlow.help()`.
 
 ## License
 
