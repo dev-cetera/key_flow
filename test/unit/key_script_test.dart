@@ -44,6 +44,7 @@ void main() {
             'command': 'add',
             'args': {'text': 'Milk'},
           },
+          {'do': 'scrollTo', 'at': 'row-80', 'within': 'rows'},
           {'do': 'wait', 'ms': 300},
           {'do': 'waitFor', 'at': 'saved', 'ms': 2000},
           {

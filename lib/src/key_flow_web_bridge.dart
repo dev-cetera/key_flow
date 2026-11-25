@@ -69,6 +69,7 @@ final class KeyFlowWebBridge {
           '{do: "type", text, at?, submit?}, {do: "keys", keys: "meta+k"}, '
           '{do: "run", command, args?}, {do: "caption", text}, '
           '{do: "wait", ms}, {do: "waitFor", at, ms?}, '
+          '{do: "scrollTo", at, within}, '
           '{do: "together", steps}; each acting step takes cursor?',
       'A place ("at"): an anchor id from spots(), "row-2/tick" for the one '
           'inside "row-2", or "tick[1]" for the second in reading order',

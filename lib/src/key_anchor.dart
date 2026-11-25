@@ -225,7 +225,8 @@ final class KeyAnchorRegistry {
     if (matches.isEmpty) {
       final ids = {for (final spot in all) spot.place};
       throw StateError(
-        'Nothing on screen is "$place". On screen: '
+        'Nothing on screen is "$place" (a row of a list far off screen may '
+        'not be built yet: scroll to it first). On screen: '
         '${ids.isEmpty ? 'no anchors' : ids.join(', ')}',
       );
     }

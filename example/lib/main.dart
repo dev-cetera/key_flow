@@ -21,16 +21,22 @@
 //   ⌘⇧A       what agents see: the commands as AI tools, live
 //   ⌘⇧T       show me around: two cursors play a scripted tour
 //
+// "Phone demo" opens a shopping list in a phone with a "Show me" button:
+// fingertips tap, hold, drag, swipe, scroll, slide and move between pages.
+//
 // On the web, `keyFlow.help()` in the browser console lists what a browser
 // agent can do: read the commands, run them and play scripts.
 //
-// Build with --dart-define=KEYFLOW_PANEL=palette (or help, jump, go, tour) to
-// open a panel or start the tour at start, for screenshots and agent checks.
+// Build with --dart-define=KEYFLOW_PANEL=palette (or help, jump, go, tour,
+// phone) to open a panel or start a demo at start, for screenshots, videos
+// and agent checks.
 
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:key_flow/key_flow.dart';
+
+import 'phone_demo.dart';
 
 void main() => runApp(const ExampleApp());
 
@@ -81,6 +87,8 @@ class _ExampleAppState extends State<ExampleApp> {
           _keys.openGroup('go');
         case 'tour':
           _showAround();
+        case 'phone':
+          _openPhoneDemo(playAtStart: true);
       }
     });
   }
@@ -141,6 +149,14 @@ class _ExampleAppState extends State<ExampleApp> {
       ),
     );
     setState(() => _status = 'The tour ${end.name}.');
+  }
+
+  void _openPhoneDemo({bool playAtStart = false}) {
+    _navigator.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => PhoneDemo(playAtStart: playAtStart),
+      ),
+    );
   }
 
   Future<void> _rename() async {
@@ -383,6 +399,13 @@ class _ExampleAppState extends State<ExampleApp> {
                     ).callbackFor(context, 'help.tour'),
                     child: const Text('Show me around'),
                   ),
+                ),
+              ),
+              KeyAnchor(
+                id: 'phone-demo',
+                child: TextButton(
+                  onPressed: _openPhoneDemo,
+                  child: const Text('Phone demo'),
                 ),
               ),
             ],

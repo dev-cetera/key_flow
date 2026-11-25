@@ -218,6 +218,44 @@ void main() {
       expect(log, ['pressed', 'held']);
     });
 
+    testWidgets('a tap waits for a sheet sliding up to settle', (tester) async {
+      await tester.pumpWidget(
+        app(
+          body: Builder(
+            builder: (context) => Center(
+              child: KeyAnchor(
+                id: 'open',
+                child: TextButton(
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    builder: (context) => SizedBox(
+                      height: 200,
+                      child: Center(
+                        child: KeyAnchor(
+                          id: 'ok',
+                          child: TextButton(
+                            onPressed: () => log.add('ok'),
+                            child: const Text('OK'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  child: const Text('Open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await playAll(
+        tester,
+        controller,
+        script([const KeyStep.tap('open'), const KeyStep.tap('ok')]),
+      );
+      expect(log, ['ok']);
+    });
+
     testWidgets('typing fills a field and submits it', (tester) async {
       await tester.pumpWidget(app());
       await playAll(
@@ -227,6 +265,56 @@ void main() {
       );
       expect(text.text, 'Milk 2');
       expect(log, ['submitted Milk 2']);
+    });
+
+    Widget longList() {
+      return app(
+        body: KeyAnchor(
+          id: 'rows',
+          child: ListView.builder(
+            itemCount: 100,
+            itemBuilder: (context, i) => KeyAnchor(
+              id: 'row-$i',
+              child: ListTile(
+                title: Text('Row $i'),
+                onTap: () => log.add('row $i'),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('scrollTo swipes a list until a row not yet built shows', (
+      tester,
+    ) async {
+      await tester.pumpWidget(longList());
+      expect(() => controller.findSpot('row-80'), throwsStateError);
+      await playAll(
+        tester,
+        controller,
+        script([
+          const KeyStep.scrollTo('row-80', within: 'rows'),
+          const KeyStep.tap('row-80'),
+        ]),
+      );
+      expect(log, ['row 80']);
+    });
+
+    testWidgets('scrollTo fails once the list is swiped through', (
+      tester,
+    ) async {
+      await tester.pumpWidget(longList());
+      await expectPlayFails(
+        tester,
+        controller,
+        script([const KeyStep.scrollTo('row-999', within: 'rows')]),
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('did not show while scrolling'),
+        ),
+      );
     });
 
     testWidgets('a drag moves by what it is told', (tester) async {

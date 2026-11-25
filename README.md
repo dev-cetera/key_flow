@@ -225,6 +225,7 @@ final end = await KeyFlow.of(context).play(const KeyScript(
 | `point(at)` | the cursor moves there and rings it |
 | `tap(at)`, `hold(at, duration:)` | a real tap or long press, after scrolling it into view |
 | `drag(at, to: or by:, hold:)` | a real drag, optionally after a long press |
+| `scrollTo(at, within:)` | swipes the list `within` until `at` shows, for rows not built yet |
 | `type(text, at:, submit:)` | taps the field, types a key at a time, submits |
 | `keys('meta+k')` | shows the keys and does what they do here |
 | `run(id, args:)` | taps the command's control if one shows; with args, runs it as code |
@@ -263,7 +264,7 @@ handle.dispose();
 
 ## Example
 
-[example/lib/main.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/main.dart): a projects app run entirely from the keyboard, with menus, nested groups, two areas, linked controls, a text field, Vim keys as a profile, a panel showing what agents see, live, and a two-cursor tour (⌘⇧T, or "Show me around"). On the web, open the console and try `keyFlow.help()`.
+[example/lib/main.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/main.dart): a projects app run entirely from the keyboard, with menus, nested groups, two areas, linked controls, a text field, Vim keys as a profile, a panel showing what agents see, live, a two-cursor tour (⌘⇧T, or "Show me around"), and a phone demo ([example/lib/phone_demo.dart](https://github.com/dev-cetera/key_flow/blob/main/example/lib/phone_demo.dart)): a shopping list whose "Show me" button plays fingertips that tap, hold, drag, swipe, scroll, slide, type and move between pages. On the web, open the console and try `keyFlow.help()`.
 
 ## License
 

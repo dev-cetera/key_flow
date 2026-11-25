@@ -385,22 +385,23 @@ final class KeyPlayer {
     final hand = _hands[step.cursor ?? first]!;
     switch (step) {
       case KeyPointStep(:final at):
-        final spot = await _ready(at, hand, mustReach: false);
-        await _move(hand, spot.rect.center);
+        final spot = await _reach(hand, at, mustReach: false);
         stage._ring(spot.rect.center, hand.cursor.color, _stamp, tap: false);
         await _sleep(_scaled(const Duration(milliseconds: 700)));
       case KeyTapStep(:final at):
         await _tap(hand, at);
         await _sleep(_settle);
       case KeyHoldStep(:final at, :final duration):
-        final spot = await _ready(at, hand, mustReach: true);
-        await _move(hand, spot.rect.center);
+        await _reach(hand, at, mustReach: true);
         _down(hand);
         await _sleep(duration);
         _up(hand);
         await _sleep(_settle);
       case KeyDragStep(:final at, :final to, :final by, :final hold):
         await _drag(hand, at, to: to, by: by, hold: hold);
+        await _sleep(_settle);
+      case KeyScrollToStep(:final at, :final within):
+        await _scrollTo(hand, at, within);
         await _sleep(_settle);
       case KeyTypeStep(:final text, :final at, :final submit):
         if (at != null) {
@@ -437,7 +438,7 @@ final class KeyPlayer {
     _Hand hand, {
     required bool mustReach,
   }) async {
-    var spot = host.controller.findSpot(at);
+    var spot = await _settled(at);
     final view = Offset.zero & _viewSize;
     if (!_contains(view, spot.rect)) {
       await Scrollable.ensureVisible(
@@ -446,8 +447,7 @@ final class KeyPlayer {
         duration: _scaled(const Duration(milliseconds: 400)),
         curve: Curves.easeInOutCubic,
       );
-      await _frame();
-      spot = host.controller.findSpot(at);
+      spot = await _settled(at);
     }
     if (!view.contains(spot.rect.center)) {
       throw StateError('"$at" is off screen and could not be scrolled to');
@@ -461,14 +461,46 @@ final class KeyPlayer {
     return spot;
   }
 
+  /// The spot [at] names once it stays put from one frame to the next, as
+  /// a person waits for a sheet to slide up or a page to slide in. Something
+  /// that never stops moving is taken where it is after [_settleLimit].
+  Future<KeySpot> _settled(String at) async {
+    var spot = host.controller.findSpot(at);
+    for (var i = 0; i < _settleLimit; i++) {
+      await _frame();
+      final next = host.controller.findSpot(at);
+      if (next.rect == spot.rect) return next;
+      spot = next;
+    }
+    return spot;
+  }
+
+  static const _settleLimit = 90;
+
+  /// Moves [hand] onto the spot [at] names, following it if it moved while
+  /// the cursor travelled, and returns it.
+  Future<KeySpot> _reach(
+    _Hand hand,
+    String at, {
+    required bool mustReach,
+  }) async {
+    var spot = await _ready(at, hand, mustReach: mustReach);
+    for (var i = 0; i < 3; i++) {
+      await _move(hand, spot.rect.center);
+      final now = host.controller.findSpot(at);
+      if ((now.rect.center - spot.rect.center).distance < 1) return now;
+      spot = await _ready(at, hand, mustReach: mustReach);
+    }
+    return spot;
+  }
+
   static bool _contains(Rect outer, Rect inner) {
     return outer.contains(inner.topLeft) &&
         outer.contains(inner.bottomRight - const Offset(0.5, 0.5));
   }
 
   Future<void> _tap(_Hand hand, String at) async {
-    final spot = await _ready(at, hand, mustReach: true);
-    await _move(hand, spot.rect.center);
+    await _reach(hand, at, mustReach: true);
     _down(hand);
     // Long enough to see, short enough to stay a tap.
     await _sleep(const Duration(milliseconds: 90));
@@ -483,10 +515,9 @@ final class KeyPlayer {
     required Offset? by,
     required Duration hold,
   }) async {
-    final spot = await _ready(at, hand, mustReach: true);
+    final spot = await _reach(hand, at, mustReach: true);
     final start = spot.rect.center;
     final end = to != null ? host.controller.findSpot(to).rect.center : null;
-    await _move(hand, start);
     _down(hand);
     await _sleep(hold == Duration.zero ? _scaled(_pressPause) : hold);
     final target = end ?? start + by!;
@@ -500,6 +531,71 @@ final class KeyPlayer {
   }
 
   static const _pressPause = Duration(milliseconds: 150);
+
+  /// Swipes the list [within] until [at] shows: towards its end, then back
+  /// towards its start.
+  Future<void> _scrollTo(_Hand hand, String at, String within) async {
+    final wanted = KeyPlace.parse(at);
+    bool showing() {
+      final count = host.controller.spots.where(wanted.matches).length;
+      return count > (wanted.index ?? 0);
+    }
+
+    var towardsEnd = true;
+    for (var swipes = 0; swipes < _swipeLimit; swipes++) {
+      if (showing()) {
+        await _ready(at, hand, mustReach: false);
+        return;
+      }
+      final list = host.controller.findSpot(within);
+      final scrollable = _scrollableIn(list.context);
+      if (scrollable == null) {
+        throw StateError('"$within" holds nothing that scrolls');
+      }
+      final position = scrollable.position;
+      final atEdge = towardsEnd
+          ? position.pixels >= position.maxScrollExtent
+          : position.pixels <= position.minScrollExtent;
+      if (atEdge) {
+        if (!towardsEnd) break;
+        towardsEnd = false;
+        continue;
+      }
+      final vertical =
+          axisDirectionToAxis(scrollable.axisDirection) == Axis.vertical;
+      final length = (vertical ? list.rect.height : list.rect.width) * 0.6;
+      // A finger moves against the way the content scrolls.
+      var sign = towardsEnd ? -1.0 : 1.0;
+      if (axisDirectionIsReversed(scrollable.axisDirection)) sign = -sign;
+      await _drag(
+        hand,
+        within,
+        to: null,
+        by: vertical ? Offset(0, sign * length) : Offset(sign * length, 0),
+        hold: Duration.zero,
+      );
+      await _sleep(_scaled(const Duration(milliseconds: 200)));
+    }
+    throw StateError('"$at" did not show while scrolling "$within" through');
+  }
+
+  static const _swipeLimit = 60;
+
+  /// The first [Scrollable] at or under [context].
+  static ScrollableState? _scrollableIn(BuildContext context) {
+    ScrollableState? found;
+    void visit(Element element) {
+      if (found != null) return;
+      if (element is StatefulElement && element.state is ScrollableState) {
+        found = element.state as ScrollableState;
+        return;
+      }
+      element.visitChildElements(visit);
+    }
+
+    visit(context as Element);
+    return found;
+  }
 
   Future<void> _type(String text, {required bool submit}) async {
     final field = _focusedField();

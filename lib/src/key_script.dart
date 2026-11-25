@@ -234,6 +234,13 @@ sealed class KeyStep {
     String? cursor,
   }) = KeyDragStep;
 
+  /// Swipes the list [within] until [at] shows; see [KeyScrollToStep].
+  const factory KeyStep.scrollTo(
+    String at, {
+    required String within,
+    String? cursor,
+  }) = KeyScrollToStep;
+
   /// Types [text], a key at a time, into the field [at] (tapped first) or
   /// the focused field; with [submit], then submits it.
   const factory KeyStep.type(
@@ -289,6 +296,11 @@ sealed class KeyStep {
         hold: fields.maybeDuration('holdMs') ?? Duration.zero,
         cursor: cursor,
       ),
+      'scrollTo' => KeyScrollToStep(
+        fields.string('at'),
+        within: fields.string('within'),
+        cursor: cursor,
+      ),
       'type' => KeyTypeStep(
         fields.string('text'),
         at: fields.maybeString('at'),
@@ -312,8 +324,8 @@ sealed class KeyStep {
           KeyStep.fromJson(_asMap(step, 'a step')),
       ]),
       _ => throw FormatException(
-        'A step does point, tap, hold, drag, type, keys, run, caption, wait, '
-        'waitFor or together',
+        'A step does point, tap, hold, drag, scrollTo, type, keys, run, '
+        'caption, wait, waitFor or together',
         kind,
       ),
     };
@@ -409,6 +421,27 @@ final class KeyDragStep extends KeyStep {
       if (by != null) 'by': [by.dx, by.dy],
       if (hold != Duration.zero) 'holdMs': hold.inMilliseconds,
     });
+  }
+}
+
+/// Swipes the list [within], as a person does, until [at] shows: down to
+/// its end, then up to its start; then fails.
+///
+/// A list that builds its rows as they scroll into view, such as
+/// [ListView.builder], has no anchor yet for a row far off screen, so a tap
+/// cannot find it. Scroll to it first.
+final class KeyScrollToStep extends KeyStep {
+  /// What to bring on screen; see [KeyPlace].
+  final String at;
+
+  /// The anchor around the list (or holding it) to swipe.
+  final String within;
+
+  const KeyScrollToStep(this.at, {required this.within, super.cursor});
+
+  @override
+  Map<String, Object?> toJson() {
+    return _json('scrollTo', {'at': at, 'within': within});
   }
 }
 
